@@ -1,15 +1,15 @@
 import {
-  Injectable,
-  NotFoundException,
   ConflictException,
-  BadRequestException,
+  Injectable,
+  NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { UUID } from 'crypto';
+import { Category } from 'src/categories/entities/category.entity';
 import { Repository } from 'typeorm';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
 import { Skill } from './entities/skill.entity';
-import { Category } from 'src/categories/entities/category.entity';
 
 @Injectable()
 export class SkillsService {
@@ -39,7 +39,7 @@ export class SkillsService {
     return await this.skillRepository.save(skill);
   }
 
-  async findAll(categoryId?: string): Promise<Skill[]> {
+  async findAll(categoryId?: UUID): Promise<Skill[]> {
     const where = categoryId ? { categoryId } : {};
 
     return await this.skillRepository.find({

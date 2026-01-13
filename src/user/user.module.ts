@@ -7,10 +7,11 @@ import { Volunteer } from './entities/volunteer.entity';
 import { Needy } from './entities/needy.entity';
 import { Admin } from './entities/admin.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
+import { Program } from 'src/program/entities/program.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Volunteer, Needy, Admin, Skill]),
+    TypeOrmModule.forFeature([User, Volunteer, Needy, Admin, Skill, Program]),
   ],
   controllers: [UserController],
   providers: [UserService],

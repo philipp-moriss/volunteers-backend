@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
   ManyToOne,
+  ManyToMany,
   JoinColumn,
 } from 'typeorm';
 import { Admin } from 'src/user/entities/admin.entity';
@@ -59,6 +60,6 @@ export class Program {
   @OneToMany(() => Needy, (needy) => needy.program)
   needies?: Needy[];
 
-  @OneToMany(() => Volunteer, (volunteer) => volunteer.program)
+  @ManyToMany(() => Volunteer, (volunteer) => volunteer.programs)
   volunteers?: Volunteer[];
 }

@@ -7,6 +7,7 @@ import {
   ManyToOne,
   ManyToMany,
   JoinColumn,
+  JoinTable,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Program } from 'src/program/entities/program.entity';
@@ -24,26 +25,19 @@ export class Volunteer {
   })
   userId: string;
 
-  @Column({
-    name: 'program_id',
-    type: 'uuid',
+  @ManyToMany(() => Program, (program) => program.volunteers)
+  @JoinTable({
+    name: 'volunteer_programs',
+    joinColumn: {
+      name: 'volunteer_id',
+      referencedColumnName: 'id',
+    },
+    inverseJoinColumn: {
+      name: 'program_id',
+      referencedColumnName: 'id',
+    },
   })
-  programId: string;
-
-  @ManyToOne(() => Program, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'program_id' })
-  program: Program;
-
-  @Column({
-    name: 'city_id',
-    type: 'uuid',
-  })
-  cityId: string;
-
-  // TODO: Раскомментировать когда модуль City будет создан
-  // @ManyToOne(() => City, { onDelete: 'RESTRICT' })
-  // @JoinColumn({ name: 'city_id' })
-  // city: City;
+  programs: Program[];
 
   @ManyToMany(() => Skill, (skill) => skill.volunteers)
   skills: Skill[];

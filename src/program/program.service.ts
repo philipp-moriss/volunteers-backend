@@ -4,20 +4,32 @@ import { Repository } from 'typeorm';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
 import { Program } from './entities/program.entity';
+import { Admin } from 'src/user/entities/admin.entity';
 
 @Injectable()
 export class ProgramService {
   constructor(
     @InjectRepository(Program)
     private programRepository: Repository<Program>,
+    @InjectRepository(Admin)
+    private adminRepository: Repository<Admin>,
   ) {}
 
-  async create(createProgramDto: CreateProgramDto, ownerId: string): Promise<Program> {
+  async create(createProgramDto: CreateProgramDto, userId: string): Promise<Program> {
+    // Находим Admin entity по userId
+    const admin = await this.adminRepository.findOne({
+      where: { userId },
+    });
+
+    if (!admin) {
+      throw new NotFoundException(`Admin with userId ${userId} not found`);
+    }
+
     const program = this.programRepository.create({
       name: createProgramDto.name,
       description: createProgramDto.description,
       isActive: createProgramDto.isActive ?? true,
-      ownerId,
+      ownerId: admin.id, // Используем ID админа, а не ID пользователя
     });
 
     return this.programRepository.save(program);

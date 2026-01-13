@@ -13,6 +13,7 @@ import {
 import { SkillsService } from './skills.service';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
+import { QuerySkillsDto } from './dto/query.dto';
 
 @Controller('skills')
 export class SkillsController {
@@ -25,8 +26,8 @@ export class SkillsController {
   }
 
   @Get()
-  findAll(@Query('categoryId') categoryId?: string) {
-    return this.skillsService.findAll(categoryId);
+  findAll(@Query() query: QuerySkillsDto) {
+    return this.skillsService.findAll(query.categoryId);
   }
 
   @Get(':id')

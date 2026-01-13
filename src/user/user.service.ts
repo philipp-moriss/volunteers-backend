@@ -9,12 +9,14 @@ import { Needy } from './entities/needy.entity';
 import { Volunteer } from './entities/volunteer.entity';
 import { Admin } from './entities/admin.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
+import { Program } from 'src/program/entities/program.entity';
 import {
   UserWithRoleData,
   UserWithVolunteerData,
   UserWithNeedyData,
   UserWithAdminData,
 } from './types/user';
+import { UUID } from 'crypto';
 
 @Injectable()
 export class UserService {
@@ -29,11 +31,13 @@ export class UserService {
     private adminRepository: Repository<Admin>,
     @InjectRepository(Skill)
     private skillRepository: Repository<Skill>,
+    @InjectRepository(Program)
+    private programRepository: Repository<Program>,
     private dataSource: DataSource,
   ) {}
 
   async create(createUserDto: Partial<CreateUserDto>, creatorId?: string): Promise<UserWithRoleData> {
-    const { passwordHash, cityId, address, skills, ...rest } = createUserDto;
+    const { passwordHash, skills, ...rest } = createUserDto;
     
     // Проверяем уникальность email, если указан
     if (rest.email) {
@@ -62,6 +66,7 @@ export class UserService {
       const volunteerRepository = manager.getRepository(Volunteer);
       const adminRepository = manager.getRepository(Admin);
       const skillRepository = manager.getRepository(Skill);
+      const programRepository = manager.getRepository(Program);
 
       const user = userRepository.create({
         ...rest,
@@ -76,8 +81,6 @@ export class UserService {
         savedUser.role,
         savedUser.id,
         {
-          cityId,
-          address,
           skills,
           programId: createUserDto.programId,
           creatorId,
@@ -87,14 +90,69 @@ export class UserService {
           volunteerRepository,
           adminRepository,
           skillRepository,
+          programRepository,
         },
       );
 
-      const { passwordHash: _, ...userWithoutPassword } = savedUser;
+      const { passwordHash: _, refreshTokenHash: __, ...userWithoutPassword } = savedUser;
+      
+      let profileData;
+      switch (savedUser.role) {
+        case UserRole.VOLUNTEER: {
+          const volunteerWithRelations = await volunteerRepository.findOne({
+            where: { userId: savedUser.id },
+            relations: ['programs', 'skills'],
+          });
+          if (!volunteerWithRelations) {
+            throw new NotFoundException(`Volunteer data for user ${savedUser.id} not found`);
+          }
+          const { user: _, programs, ...volunteerData } = volunteerWithRelations;
+          profileData = {
+            ...volunteerData,
+            programs,
+          };
+          break;
+        }
+        case UserRole.NEEDY: {
+          const needyWithRelations = await needyRepository.findOne({
+            where: { userId: savedUser.id },
+            relations: ['program', 'creator'],
+          });
+          if (!needyWithRelations) {
+            throw new NotFoundException(`Needy data for user ${savedUser.id} not found`);
+          }
+          const { user: _, program, creator, ...needyData } = needyWithRelations;
+          profileData = {
+            ...needyData,
+            program,
+            creator,
+          };
+          break;
+        }
+        case UserRole.ADMIN: {
+          const adminWithRelations = await adminRepository.findOne({
+            where: { userId: savedUser.id },
+            relations: ['ownedPrograms', 'createdByAdmin'],
+          });
+          if (!adminWithRelations) {
+            throw new NotFoundException(`Admin data for user ${savedUser.id} not found`);
+          }
+          const { user: _, ownedPrograms, createdByAdmin, ...adminData } = adminWithRelations;
+          profileData = {
+            ...adminData,
+            ownedPrograms,
+            createdByAdmin,
+          };
+          break;
+        }
+        default:
+          throw new BadRequestException(`Unknown user role: ${savedUser.role}`);
+      }
+      
       return {
         ...userWithoutPassword,
         role: savedUser.role,
-        [savedUser.role]: profile,
+        profile: profileData,
       } as UserWithRoleData;
     });
   }
@@ -111,10 +169,9 @@ export class UserService {
     role: UserRole,
     userId: string,
     profileData: {
-      cityId?: string;
-      address?: string;
       skills?: string[];
-      programId?: string;
+      programId?: UUID;
+      programIds?: string[];
       creatorId?: string;
     },
     repositories: {
@@ -122,16 +179,14 @@ export class UserService {
       volunteerRepository: Repository<Volunteer>;
       adminRepository: Repository<Admin>;
       skillRepository: Repository<Skill>;
+      programRepository: Repository<Program>;
     },
   ): Promise<Admin | Needy | Volunteer> {
-    const { cityId, address, skills, programId, creatorId } = profileData;
-    const { needyRepository, volunteerRepository, adminRepository, skillRepository } = repositories;
+    const { skills, programId, programIds, creatorId } = profileData;
+    const { needyRepository, volunteerRepository, adminRepository, skillRepository, programRepository } = repositories;
 
     switch (role) {
       case UserRole.NEEDY:
-        if (!cityId || !address) {
-          throw new BadRequestException('cityId and address are required for needy users');
-        }
         if (!creatorId) {
           throw new BadRequestException('creatorId is required for needy users');
         }
@@ -142,20 +197,11 @@ export class UserService {
         const needy = needyRepository.create({
           userId,
           programId,
-          cityId,
-          address,
           creatorId,
         });
         return await needyRepository.save(needy);
 
       case UserRole.VOLUNTEER:
-        if (!cityId) {
-          throw new BadRequestException('cityId is required for volunteer users');
-        }
-        if (!programId) {
-          throw new BadRequestException('programId is required for volunteer users');
-        }
-        
         // Если skills указаны как массив строк (IDs), находим соответствующие Skill entities
         let skillEntities: Skill[] = [];
         if (skills && skills.length > 0) {
@@ -174,10 +220,12 @@ export class UserService {
           }
         }
         
+        // Для теста: присваиваем все программы волонтеру
+        const allPrograms = await programRepository.find();
+        
         const volunteer = volunteerRepository.create({
           userId,
-          programId,
-          cityId,
+          programs: allPrograms,
           skills: skillEntities,
         });
         return await volunteerRepository.save(volunteer);
@@ -347,28 +395,28 @@ export class UserService {
       throw new NotFoundException(`User with id ${id} not found`);
     }
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    const { passwordHash: _, refreshTokenHash: __, ...userWithoutPassword } = user;
 
     // Получаем расширенные данные в зависимости от роли
     switch (user.role) {
       case UserRole.VOLUNTEER: {
         const volunteer = await this.volunteerRepository.findOne({
           where: { userId: id },
-          relations: ['program', 'skills'],
+          relations: ['programs', 'skills'],
         });
 
         if (!volunteer) {
           throw new NotFoundException(`Volunteer data for user ${id} not found`);
         }
 
-        const { user: _, program, ...volunteerData } = volunteer;
+        const { user: _, programs, ...volunteerData } = volunteer;
 
         return {
           ...userWithoutPassword,
           role: UserRole.VOLUNTEER,
-          volunteer: {
+          profile: {
             ...volunteerData,
-            program,
+            programs,
           },
         } as UserWithVolunteerData;
       }
@@ -388,7 +436,7 @@ export class UserService {
         return {
           ...userWithoutPassword,
           role: UserRole.NEEDY,
-          needy: {
+          profile: {
             ...needyData,
             program,
             creator,
@@ -411,7 +459,7 @@ export class UserService {
         return {
           ...userWithoutPassword,
           role: UserRole.ADMIN,
-          admin: {
+          profile: {
             ...adminData,
             ownedPrograms,
             createdByAdmin,

@@ -7,6 +7,7 @@ import { HealthCheckModule } from 'src/healthCheck/healthCheck.module';
 import { User } from 'src/user/entities/user.entity';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { Needy } from 'src/user/entities/needy.entity';
+import { Admin } from 'src/user/entities/admin.entity';
 import { Image } from 'src/image/entities/image.entity';
 import { UserModule } from 'src/user/user.module';
 import { AuthModule } from 'src/auth/auth.module';
@@ -50,6 +51,7 @@ import { SkillsModule } from 'src/skills/skills.module';
             Volunteer,
             VerificationCode,
             Needy,
+            Admin,
             Image,
             Program,
             Category,

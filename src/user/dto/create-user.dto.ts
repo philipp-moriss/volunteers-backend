@@ -1,6 +1,7 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsEnum } from "class-validator";
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID } from "class-validator";
 import { UserRole, UserStatus } from "src/shared/user";
 import { ApiProperty } from "@nestjs/swagger";
+import { UUID } from "crypto";
 
 export class CreateUserDto {
   @ApiProperty({
@@ -39,10 +40,6 @@ export class CreateUserDto {
   @IsOptional()
   phone?: string;
 
-  @ApiProperty({
-    description: 'The password hash (for admin, set by service)',
-    required: false,
-  })
   @IsString()
   @IsOptional()
   passwordHash?: string;
@@ -66,13 +63,9 @@ export class CreateUserDto {
   @IsOptional()
   status?: UserStatus;
 
-  @ApiProperty({
-    description: 'Program ID',
-    required: false,
-  })
-  @IsString()
+  @IsUUID()
   @IsOptional()
-  programId?: string;
+  programId?: UUID;
 
   @ApiProperty({
     description: 'Photo URL',
@@ -90,21 +83,21 @@ export class CreateUserDto {
   @IsOptional()
   about?: string;
 
-  @ApiProperty({
-    description: 'City ID (required for volunteer/needy)',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  cityId?: string;
+  // @ApiProperty({
+  //   description: 'City ID (required for volunteer/needy)',
+  //   required: false,
+  // })
+  // @IsUUID()
+  // @IsOptional()
+  // cityId?: UUID;
 
-  @ApiProperty({
-    description: 'Address (required for needy)',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  address?: string;
+  // @ApiProperty({
+  //   description: 'Address (required for needy)',
+  //   required: false,
+  // })
+  // @IsUUID()
+  // @IsOptional()
+  // address?: UUID;
 
   @ApiProperty({
     description: 'Skills array (for volunteer)',

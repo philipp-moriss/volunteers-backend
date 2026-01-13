@@ -32,22 +32,6 @@ export class Needy {
   @JoinColumn({ name: 'program_id' })
   program: Program;
 
-  @Column({
-    name: 'city_id',
-    type: 'uuid',
-  })
-  cityId: string;
-
-  // TODO: Раскомментировать когда модуль City будет создан
-  // @ManyToOne(() => City, { onDelete: 'RESTRICT' })
-  // @JoinColumn({ name: 'city_id' })
-  // city: City;
-
-  @Column({
-    type: 'varchar',
-    length: 500,
-  })
-  address: string;
 
   @Column({
     name: 'creator_id',

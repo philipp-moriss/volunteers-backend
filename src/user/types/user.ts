@@ -4,7 +4,7 @@ import { Needy } from '../entities/needy.entity';
 import { Admin } from '../entities/admin.entity';
 import { UserRole } from 'src/shared/user';
 
-export type UserWithOutPassword = Omit<User, 'passwordHash'>;
+export type UserWithOutPassword = Omit<User, 'passwordHash' | 'refreshTokenHash'>;
 
 // Базовый тип пользователя без пароля
 type BaseUser = UserWithOutPassword;
@@ -12,14 +12,14 @@ type BaseUser = UserWithOutPassword;
 // Типы для расширенных пользователей с данными роли
 export interface UserWithVolunteerData extends BaseUser {
   role: UserRole.VOLUNTEER;
-  volunteer: Omit<Volunteer, 'user' | 'program'> & {
-    program?: Volunteer['program'];
+  profile: Omit<Volunteer, 'user' | 'programs'> & {
+    programs?: Volunteer['programs'];
   };
 }
 
 export interface UserWithNeedyData extends BaseUser {
   role: UserRole.NEEDY;
-  needy: Omit<Needy, 'user' | 'program' | 'creator'> & {
+  profile: Omit<Needy, 'user' | 'program' | 'creator'> & {
     program?: Needy['program'];
     creator?: Needy['creator'];
   };
@@ -27,7 +27,7 @@ export interface UserWithNeedyData extends BaseUser {
 
 export interface UserWithAdminData extends BaseUser {
   role: UserRole.ADMIN;
-  admin: Omit<Admin, 'user' | 'createdByAdmin' | 'ownedPrograms'> & {
+  profile: Omit<Admin, 'user' | 'createdByAdmin' | 'ownedPrograms'> & {
     ownedPrograms?: Admin['ownedPrograms'];
     createdByAdmin?: Admin['createdByAdmin'];
   };
