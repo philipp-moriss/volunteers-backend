@@ -1,0 +1,110 @@
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CreateSkillDto } from './dto/create-skill.dto';
+import { UpdateSkillDto } from './dto/update-skill.dto';
+import { Skill } from './entities/skill.entity';
+import { Category } from 'src/categories/entities/category.entity';
+
+@Injectable()
+export class SkillsService {
+  constructor(
+    @InjectRepository(Skill)
+    private readonly skillRepository: Repository<Skill>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
+  ) {}
+
+  async create(createSkillDto: CreateSkillDto): Promise<Skill> {
+    const category = await this.categoryRepository.findOne({
+      where: { id: createSkillDto.categoryId },
+    });
+
+    if (!category) {
+      throw new NotFoundException(
+        `Category with ID ${createSkillDto.categoryId} not found`,
+      );
+    }
+
+    const skill = this.skillRepository.create({
+      ...createSkillDto,
+      category,
+    });
+
+    return await this.skillRepository.save(skill);
+  }
+
+  async findAll(categoryId?: string): Promise<Skill[]> {
+    const where = categoryId ? { categoryId } : {};
+
+    return await this.skillRepository.find({
+      where,
+      relations: ['category'],
+      order: {
+        createdAt: 'ASC',
+      },
+    });
+  }
+
+  async findOne(id: string): Promise<Skill> {
+    const skill = await this.skillRepository.findOne({
+      where: { id },
+      relations: ['category', 'volunteers'],
+    });
+
+    if (!skill) {
+      throw new NotFoundException(`Skill with ID ${id} not found`);
+    }
+
+    return skill;
+  }
+
+  async update(id: string, updateSkillDto: UpdateSkillDto): Promise<Skill> {
+    const skill = await this.findOne(id);
+
+    if (updateSkillDto.categoryId) {
+      const category = await this.categoryRepository.findOne({
+        where: { id: updateSkillDto.categoryId },
+      });
+
+      if (!category) {
+        throw new NotFoundException(
+          `Category with ID ${updateSkillDto.categoryId} not found`,
+        );
+      }
+
+      skill.category = category;
+    }
+
+    Object.assign(skill, {
+      name: updateSkillDto.name ?? skill.name,
+      iconSvg: updateSkillDto.iconSvg ?? skill.iconSvg,
+    });
+
+    return await this.skillRepository.save(skill);
+  }
+
+  async remove(id: string): Promise<void> {
+    const skill = await this.skillRepository.findOne({
+      where: { id },
+      relations: ['volunteers'],
+    });
+
+    if (!skill) {
+      throw new NotFoundException(`Skill with ID ${id} not found`);
+    }
+
+    if (skill.volunteers && skill.volunteers.length > 0) {
+      throw new ConflictException(
+        `Cannot delete skill with ID ${id} because it is associated with volunteers`,
+      );
+    }
+
+    await this.skillRepository.remove(skill);
+  }
+}
