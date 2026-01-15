@@ -22,6 +22,7 @@ import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { Program } from 'src/program/entities/program.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
 import { Category } from 'src/categories/entities/category.entity';
+import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
 
 @Injectable()
 export class TaskService {
@@ -63,9 +64,30 @@ export class TaskService {
     const needy = await this.needyRepository.findOne({
       where: { userId: createTaskDto.needyId },
       relations: ['user'],
+      select: {
+        user: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
     });
     if (!needy) {
       throw new NotFoundException(`Needy user with ID ${createTaskDto.needyId} not found`);
+    }
+    
+    // Дополнительная защита: очищаем чувствительные данные
+    if (needy.user) {
+      needy.user = sanitizeUser(needy.user) as any;
     }
 
     // Если создает не админ, проверяем что это тот же пользователь
@@ -122,7 +144,36 @@ export class TaskService {
       .leftJoinAndSelect('task.needy', 'needy')
       .leftJoinAndSelect('task.assignedVolunteer', 'assignedVolunteer')
       .leftJoinAndSelect('task.category', 'category')
-      .leftJoinAndSelect('task.skills', 'skills');
+      .leftJoinAndSelect('task.skills', 'skills')
+      // Исключаем чувствительные поля из User relations
+      .addSelect([
+        'needy.id',
+        'needy.phone',
+        'needy.email',
+        'needy.role',
+        'needy.status',
+        'needy.firstName',
+        'needy.lastName',
+        'needy.photo',
+        'needy.about',
+        'needy.createdAt',
+        'needy.updatedAt',
+        'needy.lastLoginAt',
+      ])
+      .addSelect([
+        'assignedVolunteer.id',
+        'assignedVolunteer.phone',
+        'assignedVolunteer.email',
+        'assignedVolunteer.role',
+        'assignedVolunteer.status',
+        'assignedVolunteer.firstName',
+        'assignedVolunteer.lastName',
+        'assignedVolunteer.photo',
+        'assignedVolunteer.about',
+        'assignedVolunteer.createdAt',
+        'assignedVolunteer.updatedAt',
+        'assignedVolunteer.lastLoginAt',
+      ]);
 
     if (programId) {
       queryBuilder.where('task.programId = :programId', { programId });
@@ -144,7 +195,18 @@ export class TaskService {
 
     queryBuilder.orderBy('task.createdAt', 'DESC');
 
-    return await queryBuilder.getMany();
+    const tasks = await queryBuilder.getMany();
+    
+    // Дополнительная защита: очищаем чувствительные данные
+    return tasks.map(task => {
+      if (task.needy) {
+        task.needy = sanitizeUser(task.needy) as any;
+      }
+      if (task.assignedVolunteer) {
+        task.assignedVolunteer = sanitizeUser(task.assignedVolunteer) as any;
+      }
+      return task;
+    });
   }
 
   async findOne(id: string): Promise<Task> {
@@ -157,10 +219,48 @@ export class TaskService {
         'category',
         'skills',
       ],
+      select: {
+        needy: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+        assignedVolunteer: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
     });
 
     if (!task) {
       throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    // Дополнительная защита: очищаем чувствительные данные
+    if (task.needy) {
+      task.needy = sanitizeUser(task.needy) as any;
+    }
+    if (task.assignedVolunteer) {
+      task.assignedVolunteer = sanitizeUser(task.assignedVolunteer) as any;
     }
 
     return task;
@@ -379,7 +479,7 @@ export class TaskService {
       throw new NotFoundException('Needy profile not found');
     }
 
-    return await this.taskRepository.find({
+    const tasks = await this.taskRepository.find({
       where: { needyId: userMetadata.userId },
       relations: [
         'program',
@@ -387,7 +487,31 @@ export class TaskService {
         'category',
         'skills',
       ],
+      select: {
+        assignedVolunteer: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
       order: { createdAt: 'DESC' },
+    });
+
+    // Дополнительная защита: очищаем чувствительные данные
+    return tasks.map(task => {
+      if (task.assignedVolunteer) {
+        task.assignedVolunteer = sanitizeUser(task.assignedVolunteer) as any;
+      }
+      return task;
     });
   }
 
@@ -396,7 +520,7 @@ export class TaskService {
       throw new ForbiddenException('Only volunteers can view assigned tasks');
     }
 
-    return await this.taskRepository.find({
+    const tasks = await this.taskRepository.find({
       where: { assignedVolunteerId: userMetadata.userId },
       relations: [
         'program',
@@ -404,7 +528,31 @@ export class TaskService {
         'category',
         'skills',
       ],
+      select: {
+        needy: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
       order: { createdAt: 'DESC' },
+    });
+
+    // Дополнительная защита: очищаем чувствительные данные
+    return tasks.map(task => {
+      if (task.needy) {
+        task.needy = sanitizeUser(task.needy) as any;
+      }
+      return task;
     });
   }
 }

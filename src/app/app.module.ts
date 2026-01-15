@@ -24,12 +24,21 @@ import { SkillsModule } from 'src/skills/skills.module';
 import { TaskModule } from 'src/task/task.module';
 import { Task } from 'src/task/entities/task.entity';
 import { TaskResponse } from 'src/task/entities/task-response.entity';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60000,
+          limit: 10,
+        },
+      ],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

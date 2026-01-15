@@ -17,6 +17,7 @@ import {
   UserWithAdminData,
 } from './types/user';
 import { UUID } from 'crypto';
+import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
 
 @Injectable()
 export class UserService {
@@ -117,6 +118,22 @@ export class UserService {
           const needyWithRelations = await needyRepository.findOne({
             where: { userId: savedUser.id },
             relations: ['program', 'creator'],
+            select: {
+              creator: {
+                id: true,
+                phone: true,
+                email: true,
+                role: true,
+                status: true,
+                firstName: true,
+                lastName: true,
+                photo: true,
+                about: true,
+                createdAt: true,
+                updatedAt: true,
+                lastLoginAt: true,
+              },
+            },
           });
           if (!needyWithRelations) {
             throw new NotFoundException(`Needy data for user ${savedUser.id} not found`);
@@ -125,7 +142,7 @@ export class UserService {
           profileData = {
             ...needyData,
             program,
-            creator,
+            creator: creator ? sanitizeUser(creator) : undefined,
           };
           break;
         }
@@ -133,6 +150,22 @@ export class UserService {
           const adminWithRelations = await adminRepository.findOne({
             where: { userId: savedUser.id },
             relations: ['ownedPrograms', 'createdByAdmin'],
+            select: {
+              createdByAdmin: {
+                id: true,
+                phone: true,
+                email: true,
+                role: true,
+                status: true,
+                firstName: true,
+                lastName: true,
+                photo: true,
+                about: true,
+                createdAt: true,
+                updatedAt: true,
+                lastLoginAt: true,
+              },
+            },
           });
           if (!adminWithRelations) {
             throw new NotFoundException(`Admin data for user ${savedUser.id} not found`);
@@ -141,7 +174,7 @@ export class UserService {
           profileData = {
             ...adminData,
             ownedPrograms,
-            createdByAdmin,
+            createdByAdmin: createdByAdmin ? sanitizeUser(createdByAdmin) : undefined,
           };
           break;
         }
@@ -425,6 +458,22 @@ export class UserService {
         const needy = await this.needyRepository.findOne({
           where: { userId: id },
           relations: ['program', 'creator'],
+          select: {
+            creator: {
+              id: true,
+              phone: true,
+              email: true,
+              role: true,
+              status: true,
+              firstName: true,
+              lastName: true,
+              photo: true,
+              about: true,
+              createdAt: true,
+              updatedAt: true,
+              lastLoginAt: true,
+            },
+          },
         });
 
         if (!needy) {
@@ -439,7 +488,7 @@ export class UserService {
           profile: {
             ...needyData,
             program,
-            creator,
+            creator: creator ? sanitizeUser(creator) : undefined,
           },
         } as UserWithNeedyData;
       }
@@ -448,6 +497,22 @@ export class UserService {
         const admin = await this.adminRepository.findOne({
           where: { userId: id },
           relations: ['ownedPrograms', 'createdByAdmin'],
+          select: {
+            createdByAdmin: {
+              id: true,
+              phone: true,
+              email: true,
+              role: true,
+              status: true,
+              firstName: true,
+              lastName: true,
+              photo: true,
+              about: true,
+              createdAt: true,
+              updatedAt: true,
+              lastLoginAt: true,
+            },
+          },
         });
 
         if (!admin) {
@@ -462,7 +527,7 @@ export class UserService {
           profile: {
             ...adminData,
             ownedPrograms,
-            createdByAdmin,
+            createdByAdmin: createdByAdmin ? sanitizeUser(createdByAdmin) : undefined,
           },
         } as UserWithAdminData;
       }

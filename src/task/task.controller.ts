@@ -65,6 +65,24 @@ export class TaskController {
     });
   }
 
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get my tasks (Needy)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.NEEDY)
+  @Get('my')
+  getMyTasks(@GetUserMetadata() user: UserMetadata) {
+    return this.taskService.getMyTasks(user);
+  }
+
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get assigned tasks (Volunteer)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.VOLUNTEER)
+  @Get('assigned')
+  getAssignedTasks(@GetUserMetadata() user: UserMetadata) {
+    return this.taskService.getAssignedTasks(user);
+  }
+
   @ApiOperation({ summary: 'Get a task by id' })
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -133,23 +151,5 @@ export class TaskController {
     @GetUserMetadata() user: UserMetadata,
   ) {
     return this.taskService.approveCompletion(id, approveTaskDto, user);
-  }
-
-  @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Get my tasks (Needy)' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.NEEDY)
-  @Get('my')
-  getMyTasks(@GetUserMetadata() user: UserMetadata) {
-    return this.taskService.getMyTasks(user);
-  }
-
-  @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Get assigned tasks (Volunteer)' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.VOLUNTEER)
-  @Get('assigned')
-  getAssignedTasks(@GetUserMetadata() user: UserMetadata) {
-    return this.taskService.getAssignedTasks(user);
   }
 }

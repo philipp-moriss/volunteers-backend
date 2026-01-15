@@ -14,6 +14,7 @@ import { TaskStatus } from './types/task-status.enum';
 import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { UserRole } from 'src/shared/user/type';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
+import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
 
 @Injectable()
 export class TaskResponseService {
@@ -34,10 +35,31 @@ export class TaskResponseService {
     const task = await this.taskRepository.findOne({
       where: { id },
       relations: ['program', 'needy'],
+      select: {
+        needy: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
     });
 
     if (!task) {
       throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+    
+    // Дополнительная защита: очищаем чувствительные данные
+    if (task.needy) {
+      task.needy = sanitizeUser(task.needy) as any;
     }
 
     if (task.status !== TaskStatus.ACTIVE) {
@@ -155,6 +177,22 @@ export class TaskResponseService {
     const task = await this.taskRepository.findOne({
       where: { id },
       relations: ['needy'],
+      select: {
+        needy: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
     });
 
     if (!task) {
@@ -176,10 +214,34 @@ export class TaskResponseService {
         volunteerId: approveVolunteerDto.volunteerId,
       },
       relations: ['volunteer'],
+      select: {
+        volunteer: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
     });
 
     if (!taskResponse) {
       throw new NotFoundException('Response not found');
+    }
+
+    // Дополнительная защита: очищаем чувствительные данные
+    if (task.needy) {
+      task.needy = sanitizeUser(task.needy) as any;
+    }
+    if (taskResponse.volunteer) {
+      taskResponse.volunteer = sanitizeUser(taskResponse.volunteer) as any;
     }
 
     // Обновляем статус отклика
@@ -216,6 +278,22 @@ export class TaskResponseService {
     const task = await this.taskRepository.findOne({
       where: { id },
       relations: ['needy'],
+      select: {
+        needy: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
     });
 
     if (!task) {
@@ -224,6 +302,11 @@ export class TaskResponseService {
 
     if (task.needyId !== userMetadata.userId) {
       throw new ForbiddenException('You can only reject volunteers for your own tasks');
+    }
+    
+    // Дополнительная защита: очищаем чувствительные данные
+    if (task.needy) {
+      task.needy = sanitizeUser(task.needy) as any;
     }
 
     const taskResponse = await this.taskResponseRepository.findOne({
@@ -246,6 +329,22 @@ export class TaskResponseService {
     const task = await this.taskRepository.findOne({
       where: { id: taskId },
       relations: ['needy'],
+      select: {
+        needy: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
     });
 
     if (!task) {
@@ -263,19 +362,74 @@ export class TaskResponseService {
         throw new ForbiddenException('You can only view responses for your own tasks');
       }
     }
+    
+    // Дополнительная защита: очищаем чувствительные данные
+    if (task.needy) {
+      task.needy = sanitizeUser(task.needy) as any;
+    }
 
-    return await this.taskResponseRepository.find({
+    const responses = await this.taskResponseRepository.find({
       where: { taskId },
       relations: ['volunteer', 'program'],
+      select: {
+        volunteer: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          about: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
+        },
+      },
       order: { createdAt: 'DESC' },
+    });
+    
+    // Дополнительная защита: очищаем чувствительные данные из responses
+    return responses.map(response => {
+      if (response.volunteer) {
+        response.volunteer = sanitizeUser(response.volunteer) as any;
+      }
+      return response;
     });
   }
 
   async getByVolunteerId(volunteerId: string): Promise<TaskResponse[]> {
-    return await this.taskResponseRepository.find({
+    const responses = await this.taskResponseRepository.find({
       where: { volunteerId },
       relations: ['task', 'task.needy', 'program'],
+      select: {
+        task: {
+          needy: {
+            id: true,
+            phone: true,
+            email: true,
+            role: true,
+            status: true,
+            firstName: true,
+            lastName: true,
+            photo: true,
+            about: true,
+            createdAt: true,
+            updatedAt: true,
+            lastLoginAt: true,
+          },
+        },
+      },
       order: { createdAt: 'DESC' },
+    });
+    
+    // Дополнительная защита: очищаем чувствительные данные из вложенных relations
+    return responses.map(response => {
+      if (response.task?.needy) {
+        response.task.needy = sanitizeUser(response.task.needy) as any;
+      }
+      return response;
     });
   }
 }
