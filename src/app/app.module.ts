@@ -21,6 +21,9 @@ import { Category } from 'src/categories/entities/category.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
 import { CategoriesModule } from 'src/categories/categories.module';
 import { SkillsModule } from 'src/skills/skills.module';
+import { TaskModule } from 'src/task/task.module';
+import { Task } from 'src/task/entities/task.entity';
+import { TaskResponse } from 'src/task/entities/task-response.entity';
 
 @Module({
   imports: [
@@ -56,6 +59,8 @@ import { SkillsModule } from 'src/skills/skills.module';
             Program,
             Category,
             Skill,
+            Task,
+            TaskResponse,
           ],
         };
       },
@@ -67,6 +72,7 @@ import { SkillsModule } from 'src/skills/skills.module';
     ProgramModule,
     CategoriesModule,
     SkillsModule,
+    TaskModule,
   ],
   controllers: [AppController],
   providers: [AppService],
