@@ -13,7 +13,6 @@ import { ApproveTaskDto } from './dto/approve-task.dto';
 import { AssignVolunteerDto } from './dto/assign-volunteer.dto';
 import { TaskStatus } from './types/task-status.enum';
 import { TaskApproveRole } from './types/task-approve-role.enum';
-import { TaskResponseStatus } from './types/task-response-status.enum';
 import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { UserRole } from 'src/shared/user/type';
 import { User } from 'src/user/entities/user.entity';
@@ -23,6 +22,10 @@ import { Program } from 'src/program/entities/program.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
 import { Category } from 'src/categories/entities/category.entity';
 import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
+import { AgentService } from 'src/agent/agent.service';
+import { CategoriesService } from 'src/categories/categories.service';
+import { SkillsService } from 'src/skills/skills.service';
+import { CreateTaskAiDto } from './dto/create-task-ai.dto';
 
 @Injectable()
 export class TaskService {
@@ -41,6 +44,9 @@ export class TaskService {
     private readonly skillRepository: Repository<Skill>,
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
+    private readonly agentService: AgentService,
+    private readonly categoriesService: CategoriesService,
+    private readonly skillsService: SkillsService,
   ) {}
 
   async create(
@@ -554,5 +560,68 @@ export class TaskService {
       }
       return task;
     });
+  }
+
+  async createFromAi(
+    createTaskAiDto: CreateTaskAiDto,
+    userMetadata: UserMetadata,
+  ): Promise<Task> {
+    // Проверяем права: только needy (создатель) или admin
+    if (userMetadata.role !== UserRole.NEEDY && userMetadata.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only needy users or admins can create tasks');
+    }
+
+    // Если создает не админ, проверяем что это тот же пользователь
+    if (userMetadata.role === UserRole.NEEDY && createTaskAiDto.needyId !== userMetadata.userId) {
+      throw new ForbiddenException('You can only create tasks for yourself');
+    }
+
+    // Получаем все категории и скилы
+    const categories = await this.categoriesService.findAll();
+    const skills = await this.skillsService.findAll();
+
+    // Формируем JSON строки с категориями и скилами (только id и name)
+    const categoriesJson = JSON.stringify(
+      categories.map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+      })),
+    );
+
+    const skillsJson = JSON.stringify(
+      skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        categoryId: skill.categoryId,
+      })),
+    );
+
+    // Вызываем AI для генерации структуры таски
+    const aiGeneratedTask = await this.agentService.processTaskAiCreation(
+      createTaskAiDto.prompt,
+      categoriesJson,
+      skillsJson,
+    );
+
+    // Объединяем данные от AI с данными из DTO (DTO имеет приоритет для переопределения)
+    // Скилы выбираются только AI из БД, пользователь не может их переопределить
+    const createTaskDto: CreateTaskDto = {
+      programId: createTaskAiDto.programId,
+      needyId: createTaskAiDto.needyId,
+      type: aiGeneratedTask.type,
+      title: aiGeneratedTask.title,
+      description: aiGeneratedTask.description,
+      details: aiGeneratedTask.details,
+      points: createTaskAiDto.points ?? aiGeneratedTask.points ?? 10,
+      categoryId: createTaskAiDto.categoryId ?? aiGeneratedTask.categoryId,
+      skillIds: aiGeneratedTask.skillIds, // Скилы выбираются только AI из БД
+      firstResponseMode:
+        createTaskAiDto.firstResponseMode !== undefined
+          ? createTaskAiDto.firstResponseMode
+          : aiGeneratedTask.firstResponseMode,
+    };
+
+    // Используем существующий метод create для сохранения таски
+    return this.create(createTaskDto, userMetadata);
   }
 }
