@@ -24,6 +24,8 @@ import { SkillsModule } from 'src/skills/skills.module';
 import { TaskModule } from 'src/task/task.module';
 import { Task } from 'src/task/entities/task.entity';
 import { TaskResponse } from 'src/task/entities/task-response.entity';
+import { NotificationsModule } from 'src/notifications/notifications.module';
+import { PushSubscription } from 'src/notifications/entities/push-subscription.entity';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -70,6 +72,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
             Skill,
             Task,
             TaskResponse,
+            PushSubscription,
           ],
         };
       },
@@ -82,6 +85,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     CategoriesModule,
     SkillsModule,
     TaskModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

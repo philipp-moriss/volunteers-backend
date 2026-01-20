@@ -15,6 +15,7 @@ import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { UserRole } from 'src/shared/user/type';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
+import { PushNotificationService } from 'src/notifications/push-notification.service';
 
 @Injectable()
 export class TaskResponseService {
@@ -25,6 +26,7 @@ export class TaskResponseService {
     private readonly taskRepository: Repository<Task>,
     @InjectRepository(Volunteer)
     private readonly volunteerRepository: Repository<Volunteer>,
+    private readonly pushNotificationService: PushNotificationService,
   ) {}
 
   async respond(id: string, userMetadata: UserMetadata): Promise<TaskResponse> {
@@ -126,6 +128,22 @@ export class TaskResponseService {
         .andWhere('status = :status', { status: TaskResponseStatus.PENDING })
         .execute();
     }
+
+    // Отправляем уведомление нуждающемуся об отклике
+    this.pushNotificationService
+      .sendToUser(task.needyId, {
+        title: 'New Response to Your Task',
+        body: `Someone responded to your task "${task.title}"`,
+        data: {
+          type: 'task_response',
+          taskId: task.id,
+          responseId: savedResponse.id,
+        },
+        tag: `task-${task.id}`,
+      })
+      .catch((error) => {
+        console.error('Failed to send push notification for task response:', error);
+      });
 
     return savedResponse;
   }
@@ -263,6 +281,22 @@ export class TaskResponseService {
       .andWhere('status = :status', { status: TaskResponseStatus.PENDING })
       .execute();
 
+    // Отправляем уведомление волонтеру об одобрении
+    this.pushNotificationService
+      .sendToUser(approveVolunteerDto.volunteerId, {
+        title: 'Response Approved',
+        body: `Your response to task "${task.title}" has been approved`,
+        data: {
+          type: 'response_approved',
+          taskId: task.id,
+          responseId: taskResponse.id,
+        },
+        tag: `task-${task.id}`,
+      })
+      .catch((error) => {
+        console.error('Failed to send push notification for approved response:', error);
+      });
+
     return { taskResponse, task };
   }
 
@@ -322,6 +356,22 @@ export class TaskResponseService {
 
     taskResponse.status = TaskResponseStatus.REJECTED;
     await this.taskResponseRepository.save(taskResponse);
+
+    // Отправляем уведомление волонтеру об отклонении
+    this.pushNotificationService
+      .sendToUser(approveVolunteerDto.volunteerId, {
+        title: 'Response Rejected',
+        body: `Your response to task "${task.title}" has been rejected`,
+        data: {
+          type: 'response_rejected',
+          taskId: task.id,
+          responseId: taskResponse.id,
+        },
+        tag: `task-${task.id}`,
+      })
+      .catch((error) => {
+        console.error('Failed to send push notification for rejected response:', error);
+      });
   }
 
   async getByTaskId(taskId: string, userMetadata?: UserMetadata): Promise<TaskResponse[]> {
