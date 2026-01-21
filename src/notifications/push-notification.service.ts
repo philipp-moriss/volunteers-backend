@@ -70,6 +70,45 @@ export class PushNotificationService {
   }
 
   /**
+   * Получение подписок пользователя
+   */
+  async getUserSubscriptions(userId: string): Promise<PushSubscription[]> {
+    return this.subscriptionRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Получение всех подписок (для админа)
+   */
+  async getAllSubscriptions(): Promise<PushSubscription[]> {
+    return this.subscriptionRepository.find({
+      relations: ['user'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Получение статистики подписок
+   */
+  async getSubscriptionsStats(): Promise<{
+    total: number;
+    uniqueUsers: number;
+  }> {
+    const total = await this.subscriptionRepository.count();
+    const result = await this.subscriptionRepository
+      .createQueryBuilder('subscription')
+      .select('COUNT(DISTINCT subscription.userId)', 'count')
+      .getRawOne();
+
+    return {
+      total,
+      uniqueUsers: result ? parseInt(result.count, 10) || 0 : 0,
+    };
+  }
+
+  /**
    * Отправка уведомления одному пользователю
    */
   async sendToUser(

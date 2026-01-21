@@ -26,11 +26,16 @@ import { setVapidDetails } from './utils/vapid.util';
 
         if (publicKey && privateKey && subject) {
           setVapidDetails(publicKey, privateKey, subject);
+          console.log('✅ VAPID keys configured successfully');
+          console.log(`   Public Key: ${publicKey.substring(0, 20)}...`);
+          console.log(`   Subject: ${subject}`);
           return true;
         } else {
-          console.warn(
-            'VAPID keys not configured. Push notifications will not work.',
-          );
+          console.warn('⚠️ VAPID keys not configured. Push notifications will not work.');
+          console.warn('   Required environment variables:');
+          console.warn('   - VAPID_PUBLIC_KEY');
+          console.warn('   - VAPID_PRIVATE_KEY');
+          console.warn('   - VAPID_SUBJECT');
           return false;
         }
       },
