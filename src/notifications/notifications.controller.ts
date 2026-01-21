@@ -195,10 +195,7 @@ export class NotificationsController {
 
   @Get('subscriptions/stats')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Получить статистику подписок (только для админа)' })
+  @ApiOperation({ summary: 'Получить статистику подписок (публичный эндпоинт)' })
   async getSubscriptionsStats() {
     const stats = await this.pushNotificationService.getSubscriptionsStats();
 
