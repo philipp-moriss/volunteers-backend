@@ -10,12 +10,14 @@ export class FcmService {
 
   /**
    * Send notification to a single device
+   * @param ttl Time to live in milliseconds (optional). If device is offline, message expires after this time.
    */
   async sendNotificationToDevice(
     deviceToken: string,
     title: string,
     body: string,
     payload: string,
+    ttl?: number,
   ) {
     console.log(
       `[sendNotificationToDevice] START - token: ${deviceToken?.substring(0, 30)}..., title: ${title}, body: ${body?.substring(0, 50)}...`,
@@ -51,6 +53,8 @@ export class FcmService {
       token: deviceToken.trim(),
       android: {
         priority: 'high',
+        // TTL должен быть числом в миллисекундах (не строкой с "s")
+        ...(ttl !== undefined && ttl >= 0 ? { ttl: ttl } : {}),
       },
       apns: {
         payload: {
@@ -61,6 +65,11 @@ export class FcmService {
         },
         headers: {
           'apns-priority': '10',
+          // Для iOS также можно указать expiration через apns-expiration
+          // Формат: Unix timestamp в секундах
+          ...(ttl !== undefined && ttl >= 0 ? { 
+            'apns-expiration': String(Math.floor(Date.now() / 1000) + Math.floor(ttl / 1000))
+          } : {}),
         },
       },
     };
@@ -119,12 +128,14 @@ export class FcmService {
 
   /**
    * Send notification to multiple devices
+   * @param ttl Time to live in milliseconds (optional). If device is offline, message expires after this time.
    */
   async sendMulticastNotification(
     deviceTokens: string[],
     title: string,
     body: string,
     route: { [key: string]: string },
+    ttl?: number,
   ) {
     console.log(
       `[sendMulticastNotification] START - tokensCount: ${deviceTokens?.length || 0}, title: ${title}`,
@@ -226,6 +237,7 @@ export class FcmService {
           title || 'title',
           body || 'body',
           JSON.stringify(route),
+          ttl,
         );
         results.push({ token: token, ...result });
 
