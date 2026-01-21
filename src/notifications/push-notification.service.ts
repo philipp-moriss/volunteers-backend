@@ -139,6 +139,21 @@ export class PushNotificationService {
   }
 
   /**
+   * Отправка уведомления всем подписанным пользователям
+   */
+  async sendToAll(payload: NotificationPayload): Promise<void> {
+    const subscriptions = await this.subscriptionRepository.find();
+    
+    if (subscriptions.length === 0) {
+      this.logger.debug('No subscriptions found');
+      return;
+    }
+
+    this.logger.log(`Sending test notification to ${subscriptions.length} subscribers`);
+    await this.sendToSubscriptions(subscriptions, payload);
+  }
+
+  /**
    * Отправка уведомлений по подпискам
    */
   private async sendToSubscriptions(

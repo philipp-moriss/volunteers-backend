@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Delete,
+  Get,
   Body,
   UseGuards,
   HttpCode,
@@ -49,5 +50,45 @@ export class NotificationsController {
       user.userId,
       endpoint,
     );
+  }
+
+  @Post('test')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Тестовая отправка push-уведомления всем подписанным пользователям' })
+  async testNotification(@Body() body?: { title?: string; body?: string }) {
+    await this.pushNotificationService.sendToAll({
+      title: body?.title || 'Test Notification',
+      body: body?.body || 'This is a test push notification from the backend',
+      data: {
+        type: 'test',
+        timestamp: new Date().toISOString(),
+      },
+      tag: 'test-notification',
+    });
+
+    return { 
+      success: true, 
+      message: 'Test notification sent to all subscribers' 
+    };
+  }
+
+  @Get('test')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Тестовая отправка push-уведомления (GET запрос)' })
+  async testNotificationGet() {
+    await this.pushNotificationService.sendToAll({
+      title: 'Test Notification',
+      body: 'This is a test push notification from the backend',
+      data: {
+        type: 'test',
+        timestamp: new Date().toISOString(),
+      },
+      tag: 'test-notification',
+    });
+
+    return { 
+      success: true, 
+      message: 'Test notification sent to all subscribers' 
+    };
   }
 }
