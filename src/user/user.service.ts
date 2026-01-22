@@ -253,7 +253,7 @@ export class UserService {
           }
         }
         
-        // Для теста: присваиваем все программы волонтеру
+        // Автоматически назначаем волонтера на все существующие программы
         const allPrograms = await programRepository.find();
         
         const volunteer = volunteerRepository.create({

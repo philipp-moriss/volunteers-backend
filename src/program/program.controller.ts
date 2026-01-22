@@ -51,6 +51,18 @@ export class ProgramController {
     return this.programService.getVolunteers(id);
   }
 
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Assign volunteer to program (Admin only)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post(':programId/assign-volunteer/:volunteerId')
+  assignVolunteerToProgram(
+    @Param('programId', ParseUUIDPipe) programId: string,
+    @Param('volunteerId', ParseUUIDPipe) volunteerId: string,
+  ) {
+    return this.programService.assignVolunteerToProgram(programId, volunteerId);
+  }
+
   @ApiOperation({ summary: 'Get a program by id' })
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {

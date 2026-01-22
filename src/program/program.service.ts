@@ -83,25 +83,22 @@ export class ProgramService {
     // Проверяем существование программы
     await this.findOne(programId);
 
-    // Получаем всех волонтеров с их программами и пользователями
-    const volunteers = await this.volunteerRepository.find({
-      relations: ['programs', 'user'],
-    });
-
-    // Фильтруем волонтеров, которые участвуют в этой программе
-    const programVolunteers = volunteers.filter((volunteer) =>
-      volunteer.programs?.some((p) => p.id === programId),
-    );
-
-    // Фильтруем по роли и статусу пользователя
-    const approvedVolunteers = programVolunteers.filter(
-      (volunteer) =>
-        volunteer.user?.role === UserRole.VOLUNTEER &&
-        volunteer.user?.status === UserStatus.APPROVED,
-    );
+    // Используем query builder для эффективного запроса через промежуточную таблицу
+    const volunteers = await this.volunteerRepository
+      .createQueryBuilder('volunteer')
+      .innerJoin(
+        'volunteer_programs',
+        'vp',
+        'vp.volunteer_id = volunteer.id AND vp.program_id = :programId',
+        { programId },
+      )
+      .innerJoinAndSelect('volunteer.user', 'user')
+      .where('user.role = :role', { role: UserRole.VOLUNTEER })
+      .andWhere('user.status = :status', { status: UserStatus.APPROVED })
+      .getMany();
 
     // Извлекаем пользователей из волонтеров
-    const users = approvedVolunteers
+    const users = volunteers
       .map((volunteer) => volunteer.user)
       .filter((user): user is User => user !== null && user !== undefined)
       .map((user) => {
@@ -123,5 +120,44 @@ export class ProgramService {
       });
 
     return users;
+  }
+
+  /**
+   * Назначить волонтера на программу
+   */
+  async assignVolunteerToProgram(programId: string, volunteerId: string) {
+    // Проверяем существование программы
+    await this.findOne(programId);
+
+    // Находим волонтера по userId (volunteerId - это userId пользователя)
+    const volunteer = await this.volunteerRepository.findOne({
+      where: { userId: volunteerId },
+      relations: ['programs'],
+    });
+
+    if (!volunteer) {
+      throw new NotFoundException(`Volunteer with userId ${volunteerId} not found`);
+    }
+
+    // Проверяем, не назначен ли уже волонтер на эту программу (idempotent)
+    const isAlreadyAssigned = volunteer.programs?.some((p) => p.id === programId);
+    if (isAlreadyAssigned) {
+      return { success: true, message: 'Volunteer already assigned to program' };
+    }
+
+    // Программа уже проверена в findOne выше, просто получаем её для добавления
+    const program = await this.programRepository.findOne({
+      where: { id: programId },
+    });
+
+    if (!program) {
+      throw new NotFoundException(`Program with id ${programId} not found`);
+    }
+
+    // Добавляем программу в массив программ волонтера
+    volunteer.programs = [...(volunteer.programs || []), program];
+    await this.volunteerRepository.save(volunteer);
+
+    return { success: true, message: 'Volunteer assigned to program successfully' };
   }
 }
