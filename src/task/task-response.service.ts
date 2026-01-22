@@ -420,7 +420,7 @@ export class TaskResponseService {
 
     const responses = await this.taskResponseRepository.find({
       where: { taskId },
-      relations: ['volunteer', 'program'],
+      relations: ['volunteer', 'program', 'task'],
       select: {
         volunteer: {
           id: true,
@@ -436,6 +436,24 @@ export class TaskResponseService {
           updatedAt: true,
           lastLoginAt: true,
         },
+        task: {
+          id: true,
+          needyId: true,
+          needy: {
+            id: true,
+            phone: true,
+            email: true,
+            role: true,
+            status: true,
+            firstName: true,
+            lastName: true,
+            photo: true,
+            about: true,
+            createdAt: true,
+            updatedAt: true,
+            lastLoginAt: true,
+          },
+        },
       },
       order: { createdAt: 'DESC' },
     });
@@ -444,6 +462,9 @@ export class TaskResponseService {
     return responses.map(response => {
       if (response.volunteer) {
         response.volunteer = sanitizeUser(response.volunteer) as any;
+      }
+      if (response.task?.needy) {
+        response.task.needy = sanitizeUser(response.task.needy) as any;
       }
       return response;
     });
