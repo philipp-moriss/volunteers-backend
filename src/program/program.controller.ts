@@ -42,6 +42,15 @@ export class ProgramController {
     return this.programService.findAll();
   }
 
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get volunteers by program id' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.NEEDY)
+  @Get(':id/volunteers')
+  getVolunteers(@Param('id', ParseUUIDPipe) id: string) {
+    return this.programService.getVolunteers(id);
+  }
+
   @ApiOperation({ summary: 'Get a program by id' })
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -67,14 +76,5 @@ export class ProgramController {
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.programService.remove(id);
-  }
-
-  @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Get volunteers by program id' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.NEEDY)
-  @Get(':id/volunteers')
-  getVolunteers(@Param('id', ParseUUIDPipe) id: string) {
-    return this.programService.getVolunteers(id);
   }
 }

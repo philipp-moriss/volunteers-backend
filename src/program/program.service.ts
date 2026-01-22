@@ -80,18 +80,28 @@ export class ProgramService {
    * Получить список волонтеров программы
    */
   async getVolunteers(programId: string) {
-    const volunteers = await this.volunteerRepository
-      .createQueryBuilder('volunteer')
-      .innerJoin('volunteer.programs', 'program', 'program.id = :programId', {
-        programId,
-      })
-      .innerJoinAndSelect('volunteer.user', 'user')
-      .where('user.role = :role', { role: UserRole.VOLUNTEER })
-      .andWhere('user.status = :status', { status: UserStatus.APPROVED })
-      .getMany();
+    // Проверяем существование программы
+    await this.findOne(programId);
+
+    // Получаем всех волонтеров с их программами и пользователями
+    const volunteers = await this.volunteerRepository.find({
+      relations: ['programs', 'user'],
+    });
+
+    // Фильтруем волонтеров, которые участвуют в этой программе
+    const programVolunteers = volunteers.filter((volunteer) =>
+      volunteer.programs?.some((p) => p.id === programId),
+    );
+
+    // Фильтруем по роли и статусу пользователя
+    const approvedVolunteers = programVolunteers.filter(
+      (volunteer) =>
+        volunteer.user?.role === UserRole.VOLUNTEER &&
+        volunteer.user?.status === UserStatus.APPROVED,
+    );
 
     // Извлекаем пользователей из волонтеров
-    const users = volunteers
+    const users = approvedVolunteers
       .map((volunteer) => volunteer.user)
       .filter((user): user is User => user !== null && user !== undefined)
       .map((user) => {
