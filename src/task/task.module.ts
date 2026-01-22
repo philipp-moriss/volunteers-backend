@@ -15,6 +15,7 @@ import { Category } from 'src/categories/entities/category.entity';
 import { AgentModule } from 'src/agent/agent.module';
 import { CategoriesModule } from 'src/categories/categories.module';
 import { SkillsModule } from 'src/skills/skills.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SkillsModule } from 'src/skills/skills.module';
     AgentModule,
     CategoriesModule,
     SkillsModule,
+    NotificationsModule,
   ],
   controllers: [TaskController, TaskResponseController],
   providers: [TaskService, TaskResponseService],

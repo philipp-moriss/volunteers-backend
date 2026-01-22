@@ -366,8 +366,152 @@ export class UserService {
       throw new NotFoundException(`User with id ${id} not found`);
     }
 
-    await this.userRepository.update(id, updateUserDto);
-    return this.findOne(id);
+    const { role, skills, programId, creatorId, ...userFields } = updateUserDto;
+
+    // Проверяем уникальность email, если указан
+    if (userFields.email && userFields.email !== user.email) {
+      const existingUser = await this.userRepository.findOne({
+        where: { email: userFields.email },
+      });
+      if (existingUser) {
+        throw new BadRequestException(`User with email ${userFields.email} already exists`);
+      }
+    }
+
+    // Проверяем уникальность phone, если указан
+    if (userFields.phone && userFields.phone !== user.phone) {
+      const existingUser = await this.userRepository.findOne({
+        where: { phone: userFields.phone },
+      });
+      if (existingUser) {
+        throw new BadRequestException(`User with phone ${userFields.phone} already exists`);
+      }
+    }
+
+    // Если изменяется роль, нужно пересоздать профиль
+    if (role && role !== user.role) {
+      return await this.dataSource.transaction(async (manager) => {
+        const userRepository = manager.getRepository(User);
+        const needyRepository = manager.getRepository(Needy);
+        const volunteerRepository = manager.getRepository(Volunteer);
+        const adminRepository = manager.getRepository(Admin);
+        const skillRepository = manager.getRepository(Skill);
+        const programRepository = manager.getRepository(Program);
+
+        // Удаляем старый профиль
+        switch (user.role) {
+          case UserRole.VOLUNTEER:
+            await volunteerRepository.delete({ userId: id });
+            break;
+          case UserRole.NEEDY:
+            await needyRepository.delete({ userId: id });
+            break;
+          case UserRole.ADMIN:
+            await adminRepository.delete({ userId: id });
+            break;
+        }
+
+        // Обновляем основные поля пользователя
+        if (Object.keys(userFields).length > 0) {
+          await userRepository.update(id, userFields);
+        }
+        await userRepository.update(id, { role });
+
+        // Создаем новый профиль для новой роли
+        const updatedUser = await userRepository.findOne({ where: { id } });
+        if (!updatedUser) {
+          throw new NotFoundException(`User with id ${id} not found`);
+        }
+
+        await this.createUserProfile(
+          role,
+          id,
+          {
+            skills,
+            programId,
+            creatorId,
+          },
+          {
+            needyRepository,
+            volunteerRepository,
+            adminRepository,
+            skillRepository,
+            programRepository,
+          },
+        );
+
+        return this.findOneWithRoleData(id);
+      });
+    }
+
+    // Если роль не изменяется, просто обновляем поля пользователя
+    if (Object.keys(userFields).length > 0) {
+      await this.userRepository.update(id, userFields);
+    }
+
+    // Если обновляются skills или programId для существующей роли
+    if (skills !== undefined || programId !== undefined) {
+      return await this.dataSource.transaction(async (manager) => {
+        const volunteerRepository = manager.getRepository(Volunteer);
+        const needyRepository = manager.getRepository(Needy);
+        const skillRepository = manager.getRepository(Skill);
+        const programRepository = manager.getRepository(Program);
+
+        switch (user.role) {
+          case UserRole.VOLUNTEER:
+            if (skills !== undefined) {
+              const skillEntities = skills.length > 0
+                ? await skillRepository.find({
+                    where: skills.map((id) => ({ id })),
+                  })
+                : [];
+
+              if (skillEntities.length !== skills.length) {
+                const foundIds = skillEntities.map((s) => s.id);
+                const notFoundIds = skills.filter((id) => !foundIds.includes(id));
+                throw new BadRequestException(
+                  `Skills with IDs ${notFoundIds.join(', ')} not found`,
+                );
+              }
+
+              const volunteer = await volunteerRepository.findOne({
+                where: { userId: id },
+                relations: ['skills'],
+              });
+
+              if (volunteer) {
+                volunteer.skills = skillEntities;
+                await volunteerRepository.save(volunteer);
+              }
+            }
+            break;
+
+          case UserRole.NEEDY:
+            if (programId !== undefined) {
+              const program = await programRepository.findOne({
+                where: { id: programId },
+              });
+              if (!program) {
+                throw new BadRequestException(`Program with id ${programId} not found`);
+              }
+
+              const needy = await needyRepository.findOne({
+                where: { userId: id },
+              });
+
+              if (needy) {
+                needy.programId = programId;
+                await needyRepository.save(needy);
+              }
+            }
+            break;
+        }
+
+        return this.findOneWithRoleData(id);
+      });
+    }
+
+    return this.findOneWithRoleData(id);
   }
 
   async remove(id: string) {

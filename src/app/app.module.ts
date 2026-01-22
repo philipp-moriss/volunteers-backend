@@ -13,7 +13,6 @@ import { UserModule } from 'src/user/user.module';
 import { AuthModule } from 'src/auth/auth.module';
 
 
-import { FcmModule } from 'src/fcm/fcm.module';
 import { VerificationCode } from 'src/auth/entities/verification-code.entity';
 import { ProgramModule } from 'src/program/program.module';
 import { Program } from 'src/program/entities/program.entity';
@@ -24,6 +23,8 @@ import { SkillsModule } from 'src/skills/skills.module';
 import { TaskModule } from 'src/task/task.module';
 import { Task } from 'src/task/entities/task.entity';
 import { TaskResponse } from 'src/task/entities/task-response.entity';
+import { NotificationsModule } from 'src/notifications/notifications.module';
+import { PushSubscription } from 'src/notifications/entities/push-subscription.entity';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -70,6 +71,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
             Skill,
             Task,
             TaskResponse,
+            PushSubscription,
           ],
         };
       },
@@ -77,11 +79,11 @@ import { ThrottlerModule } from '@nestjs/throttler';
     AuthModule,
     HealthCheckModule,
     UserModule,
-    FcmModule,
     ProgramModule,
     CategoriesModule,
     SkillsModule,
     TaskModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

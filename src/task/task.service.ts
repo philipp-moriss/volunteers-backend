@@ -26,6 +26,7 @@ import { AgentService } from 'src/agent/agent.service';
 import { CategoriesService } from 'src/categories/categories.service';
 import { SkillsService } from 'src/skills/skills.service';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
+import { PushNotificationService } from 'src/notifications/push-notification.service';
 
 @Injectable()
 export class TaskService {
@@ -47,6 +48,7 @@ export class TaskService {
     private readonly agentService: AgentService,
     private readonly categoriesService: CategoriesService,
     private readonly skillsService: SkillsService,
+    private readonly pushNotificationService: PushNotificationService,
   ) {}
 
   async create(
@@ -136,7 +138,30 @@ export class TaskService {
       skills,
     });
 
-    return await this.taskRepository.save(task);
+    const savedTask = await this.taskRepository.save(task);
+
+    // Отправляем уведомление волонтерам с подходящими навыками
+    if (createTaskDto.skillIds && createTaskDto.skillIds.length > 0) {
+      this.pushNotificationService
+        .sendToVolunteersBySkills(
+          createTaskDto.skillIds,
+          createTaskDto.programId,
+          {
+            title: 'New Task Available',
+            body: savedTask.title,
+            data: {
+              type: 'new_task',
+              taskId: savedTask.id,
+            },
+            tag: `task-${savedTask.id}`,
+          },
+        )
+        .catch((error) => {
+          console.error('Failed to send push notification for new task:', error);
+        });
+    }
+
+    return savedTask;
   }
 
   async findAll(programId?: string, filters?: {
@@ -409,10 +434,30 @@ export class TaskService {
     }
 
     // Снимаем назначение
+    const previousVolunteerId = task.assignedVolunteerId;
     task.assignedVolunteerId = undefined;
     task.status = TaskStatus.ACTIVE;
 
-    return await this.taskRepository.save(task);
+    const savedTask = await this.taskRepository.save(task);
+
+    // Отправляем уведомление волонтеру об отмене назначения
+    if (previousVolunteerId) {
+      this.pushNotificationService
+        .sendToUser(previousVolunteerId, {
+          title: 'Task Assignment Cancelled',
+          body: `Assignment for task "${task.title}" has been cancelled`,
+          data: {
+            type: 'assignment_cancelled',
+            taskId: task.id,
+          },
+          tag: `task-${task.id}`,
+        })
+        .catch((error) => {
+          console.error('Failed to send push notification for cancelled assignment:', error);
+        });
+    }
+
+    return savedTask;
   }
 
   async approveCompletion(
@@ -469,7 +514,38 @@ export class TaskService {
       }
     }
 
-    return await this.taskRepository.save(task);
+    const savedTask = await this.taskRepository.save(task);
+
+    // Отправляем уведомления об изменении статуса
+    const userIds: string[] = [];
+    if (task.assignedVolunteerId) {
+      userIds.push(task.assignedVolunteerId);
+    }
+    if (task.needyId) {
+      userIds.push(task.needyId);
+    }
+
+    if (userIds.length > 0) {
+      this.pushNotificationService
+        .sendToUsers(userIds, {
+          title: 'Task Status Updated',
+          body:
+            task.status === TaskStatus.COMPLETED
+              ? `Task "${task.title}" has been completed`
+              : `Task "${task.title}" status has been updated`,
+          data: {
+            type: 'task_status_updated',
+            taskId: task.id,
+            status: task.status,
+          },
+          tag: `task-${task.id}`,
+        })
+        .catch((error) => {
+          console.error('Failed to send push notification for task status update:', error);
+        });
+    }
+
+    return savedTask;
   }
 
   async getMyTasks(userMetadata: UserMetadata): Promise<Task[]> {

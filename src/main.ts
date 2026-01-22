@@ -7,9 +7,12 @@ async function bootstrap() {
   process.env.TZ = 'UTC';
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    allowedHeaders: '*',
-    origin: '*',
-    credentials: false,
+    origin: true, // Разрешаем все источники
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    credentials: true, // Разрешаем credentials для работы с cookies и авторизацией
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
   const config = new DocumentBuilder()
     .setTitle('Backend')
@@ -38,6 +41,8 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Backend server is running on http://0.0.0.0:${port}`);
+  console.log(`📚 Swagger API documentation: http://localhost:${port}/api`);
 }
 bootstrap();
