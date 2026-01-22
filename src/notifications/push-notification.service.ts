@@ -14,6 +14,7 @@ export interface NotificationPayload {
   badge?: string;
   data?: Record<string, any>;
   tag?: string;
+  ttl?: number; // Time to live в секундах для Web Push (опционально)
 }
 
 @Injectable()
@@ -208,6 +209,13 @@ export class PushNotificationService {
       tag: payload.tag,
     });
 
+    // Подготовка опций для webpush (TTL в секундах)
+    const pushOptions: webpush.RequestOptions = {};
+    if (payload.ttl !== undefined && payload.ttl >= 0) {
+      pushOptions.TTL = payload.ttl;
+      this.logger.debug(`Using TTL: ${payload.ttl} seconds`);
+    }
+
     const results = await Promise.allSettled(
       subscriptions.map(async (subscription) => {
         try {
@@ -219,7 +227,11 @@ export class PushNotificationService {
             },
           };
 
-          await webpush.sendNotification(pushSubscription, pushPayload);
+          await webpush.sendNotification(
+            pushSubscription,
+            pushPayload,
+            pushOptions,
+          );
           this.logger.debug(
             `Notification sent to ${subscription.endpoint.substring(0, 50)}...`,
           );
