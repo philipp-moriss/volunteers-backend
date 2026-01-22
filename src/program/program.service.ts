@@ -1,10 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
 import { Program } from './entities/program.entity';
 import { Admin } from 'src/user/entities/admin.entity';
+import { Volunteer } from 'src/user/entities/volunteer.entity';
+import { User } from 'src/user/entities/user.entity';
+import { UserRole, UserStatus } from 'src/shared/user/type';
 
 @Injectable()
 export class ProgramService {
@@ -13,6 +16,10 @@ export class ProgramService {
     private programRepository: Repository<Program>,
     @InjectRepository(Admin)
     private adminRepository: Repository<Admin>,
+    @InjectRepository(Volunteer)
+    private volunteerRepository: Repository<Volunteer>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
   async create(createProgramDto: CreateProgramDto, userId: string): Promise<Program> {
@@ -67,5 +74,44 @@ export class ProgramService {
     const program = await this.findOne(id);
     await this.programRepository.delete(id);
     return program;
+  }
+
+  /**
+   * Получить список волонтеров программы
+   */
+  async getVolunteers(programId: string) {
+    const volunteers = await this.volunteerRepository
+      .createQueryBuilder('volunteer')
+      .innerJoin('volunteer.programs', 'program', 'program.id = :programId', {
+        programId,
+      })
+      .innerJoinAndSelect('volunteer.user', 'user')
+      .where('user.role = :role', { role: UserRole.VOLUNTEER })
+      .andWhere('user.status = :status', { status: UserStatus.APPROVED })
+      .getMany();
+
+    // Извлекаем пользователей из волонтеров
+    const users = volunteers
+      .map((volunteer) => volunteer.user)
+      .filter((user): user is User => user !== null && user !== undefined)
+      .map((user) => {
+        // Преобразуем даты в ISO строки для консистентности с фронтендом
+        return {
+          id: user.id,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          photo: user.photo,
+          about: user.about,
+          createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+          updatedAt: user.updatedAt?.toISOString() || new Date().toISOString(),
+          lastLoginAt: user.lastLoginAt?.toISOString(),
+        };
+      });
+
+    return users;
   }
 }
