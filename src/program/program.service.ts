@@ -95,12 +95,9 @@ export class ProgramService {
       )
       .innerJoinAndSelect('volunteer.user', 'user')
       .where('user.role = :role', { role: UserRole.VOLUNTEER })
-      .andWhere('user.status = :status', { status: UserStatus.APPROVED })
+      // .andWhere('user.status = :status', { status: UserStatus.APPROVED })
       .getMany();
 
-    console.log(volunteers, "volunteers");
-    
-    // Извлекаем пользователей из волонтеров
     const users = volunteers
       .map((volunteer) => volunteer.user)
       .filter((user): user is User => user !== null && user !== undefined)
