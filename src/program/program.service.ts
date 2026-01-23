@@ -83,17 +83,23 @@ export class ProgramService {
     // Проверяем существование программы
     await this.findOne(programId);
 
-    // Используем query builder с relation-based join для правильной фильтрации по программе
+    // Используем query builder с явным join через промежуточную таблицу volunteer_programs
+    // Это более надежный способ для many-to-many связей в TypeORM
     const volunteers = await this.volunteerRepository
       .createQueryBuilder('volunteer')
-      .innerJoin('volunteer.programs', 'program', 'program.id = :programId', {
-        programId,
-      })
+      .innerJoin(
+        'volunteer_programs',
+        'vp',
+        'vp.volunteer_id = volunteer.id AND vp.program_id = :programId',
+        { programId },
+      )
       .innerJoinAndSelect('volunteer.user', 'user')
       .where('user.role = :role', { role: UserRole.VOLUNTEER })
       .andWhere('user.status = :status', { status: UserStatus.APPROVED })
       .getMany();
 
+    console.log(volunteers, "volunteers");
+    
     // Извлекаем пользователей из волонтеров
     const users = volunteers
       .map((volunteer) => volunteer.user)
