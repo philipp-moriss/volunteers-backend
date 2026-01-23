@@ -83,15 +83,12 @@ export class ProgramService {
     // Проверяем существование программы
     await this.findOne(programId);
 
-    // Используем query builder для эффективного запроса через промежуточную таблицу
+    // Используем query builder с relation-based join для правильной фильтрации по программе
     const volunteers = await this.volunteerRepository
       .createQueryBuilder('volunteer')
-      .innerJoin(
-        'volunteer_programs',
-        'vp',
-        'vp.volunteer_id = volunteer.id AND vp.program_id = :programId',
-        { programId },
-      )
+      .innerJoin('volunteer.programs', 'program', 'program.id = :programId', {
+        programId,
+      })
       .innerJoinAndSelect('volunteer.user', 'user')
       .where('user.role = :role', { role: UserRole.VOLUNTEER })
       .andWhere('user.status = :status', { status: UserStatus.APPROVED })
