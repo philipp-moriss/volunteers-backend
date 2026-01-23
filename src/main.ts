@@ -1,7 +1,8 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+import { ValidationPipe, ClassSerializerInterceptor, HttpException, HttpStatus } from '@nestjs/common';
 import { AppModule } from './app/app.module';
+import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
 
 async function bootstrap() {
   process.env.TZ = 'UTC';
@@ -33,9 +34,32 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
 
+  // Глобальный Exception Filter для единообразной обработки ошибок
+  app.useGlobalFilters(new AllExceptionsFilter());
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) => {
+          const constraints = Object.values(error.constraints || {});
+          return `${error.property}: ${constraints.join(', ')}`;
+        });
+
+        return new HttpException(
+          {
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'Validation failed',
+            errors: messages,
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      },
     }),
   );
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
