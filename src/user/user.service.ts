@@ -85,6 +85,8 @@ export class UserService {
           skills,
           programId: createUserDto.programId,
           creatorId,
+          cityId: createUserDto.cityId,
+          address: createUserDto.address,
         },
         {
           needyRepository,
@@ -206,6 +208,8 @@ export class UserService {
       programId?: UUID;
       programIds?: string[];
       creatorId?: string;
+      cityId?: UUID;
+      address?: string;
     },
     repositories: {
       needyRepository: Repository<Needy>;
@@ -215,7 +219,7 @@ export class UserService {
       programRepository: Repository<Program>;
     },
   ): Promise<Admin | Needy | Volunteer> {
-    const { skills, programId, programIds, creatorId } = profileData;
+    const { skills, programId, programIds, creatorId, cityId, address } = profileData;
     const { needyRepository, volunteerRepository, adminRepository, skillRepository, programRepository } = repositories;
 
     switch (role) {
@@ -231,6 +235,8 @@ export class UserService {
           userId,
           programId,
           creatorId,
+          cityId,
+          address,
         });
         return await needyRepository.save(needy);
 
@@ -260,6 +266,7 @@ export class UserService {
           userId,
           programs: allPrograms,
           skills: skillEntities,
+          cityId,
         });
         return await volunteerRepository.save(volunteer);
 
@@ -366,7 +373,7 @@ export class UserService {
       throw new NotFoundException(`User with id ${id} not found`);
     }
 
-    const { role, skills, programId, creatorId, ...userFields } = updateUserDto;
+    const { role, skills, programId, creatorId, cityId, address, ...userFields } = updateUserDto;
 
     // Проверяем уникальность email, если указан
     if (userFields.email && userFields.email !== user.email) {
@@ -430,6 +437,8 @@ export class UserService {
             skills,
             programId,
             creatorId,
+            cityId,
+            address,
           },
           {
             needyRepository,
@@ -449,8 +458,8 @@ export class UserService {
       await this.userRepository.update(id, userFields);
     }
 
-    // Если обновляются skills или programId для существующей роли
-    if (skills !== undefined || programId !== undefined) {
+    // Если обновляются skills, programId, cityId или address для существующей роли
+    if (skills !== undefined || programId !== undefined || cityId !== undefined || address !== undefined) {
       return await this.dataSource.transaction(async (manager) => {
         const volunteerRepository = manager.getRepository(Volunteer);
         const needyRepository = manager.getRepository(Needy);
@@ -459,50 +468,63 @@ export class UserService {
 
         switch (user.role) {
           case UserRole.VOLUNTEER:
-            if (skills !== undefined) {
-              const skillEntities = skills.length > 0
-                ? await skillRepository.find({
-                    where: skills.map((id) => ({ id })),
-                  })
-                : [];
+            const volunteer = await volunteerRepository.findOne({
+              where: { userId: id },
+              relations: ['skills'],
+            });
 
-              if (skillEntities.length !== skills.length) {
-                const foundIds = skillEntities.map((s) => s.id);
-                const notFoundIds = skills.filter((id) => !foundIds.includes(id));
-                throw new BadRequestException(
-                  `Skills with IDs ${notFoundIds.join(', ')} not found`,
-                );
-              }
+            if (volunteer) {
+              if (skills !== undefined) {
+                const skillEntities = skills.length > 0
+                  ? await skillRepository.find({
+                      where: skills.map((id) => ({ id })),
+                    })
+                  : [];
 
-              const volunteer = await volunteerRepository.findOne({
-                where: { userId: id },
-                relations: ['skills'],
-              });
+                if (skillEntities.length !== skills.length) {
+                  const foundIds = skillEntities.map((s) => s.id);
+                  const notFoundIds = skills.filter((id) => !foundIds.includes(id));
+                  throw new BadRequestException(
+                    `Skills with IDs ${notFoundIds.join(', ')} not found`,
+                  );
+                }
 
-              if (volunteer) {
                 volunteer.skills = skillEntities;
-                await volunteerRepository.save(volunteer);
               }
+
+              if (cityId !== undefined) {
+                volunteer.cityId = cityId;
+              }
+
+              await volunteerRepository.save(volunteer);
             }
             break;
 
           case UserRole.NEEDY:
-            if (programId !== undefined) {
-              const program = await programRepository.findOne({
-                where: { id: programId },
-              });
-              if (!program) {
-                throw new BadRequestException(`Program with id ${programId} not found`);
-              }
+            const needy = await needyRepository.findOne({
+              where: { userId: id },
+            });
 
-              const needy = await needyRepository.findOne({
-                where: { userId: id },
-              });
-
-              if (needy) {
+            if (needy) {
+              if (programId !== undefined) {
+                const program = await programRepository.findOne({
+                  where: { id: programId },
+                });
+                if (!program) {
+                  throw new BadRequestException(`Program with id ${programId} not found`);
+                }
                 needy.programId = programId;
-                await needyRepository.save(needy);
               }
+
+              if (cityId !== undefined) {
+                needy.cityId = cityId;
+              }
+
+              if (address !== undefined) {
+                needy.address = address;
+              }
+
+              await needyRepository.save(needy);
             }
             break;
         }
@@ -579,14 +601,14 @@ export class UserService {
       case UserRole.VOLUNTEER: {
         const volunteer = await this.volunteerRepository.findOne({
           where: { userId: id },
-          relations: ['programs', 'skills'],
+          relations: ['programs', 'skills', 'city'],
         });
 
         if (!volunteer) {
           throw new NotFoundException(`Volunteer data for user ${id} not found`);
         }
 
-        const { user: _, programs, ...volunteerData } = volunteer;
+        const { user: _, programs, city, ...volunteerData } = volunteer;
 
         return {
           ...userWithoutPassword,
@@ -594,6 +616,7 @@ export class UserService {
           profile: {
             ...volunteerData,
             programs,
+            city,
           },
         } as UserWithVolunteerData;
       }
@@ -601,7 +624,7 @@ export class UserService {
       case UserRole.NEEDY: {
         const needy = await this.needyRepository.findOne({
           where: { userId: id },
-          relations: ['program', 'creator'],
+          relations: ['program', 'creator', 'city'],
           select: {
             creator: {
               id: true,
@@ -624,7 +647,7 @@ export class UserService {
           throw new NotFoundException(`Needy data for user ${id} not found`);
         }
 
-        const { user: _, program, creator, ...needyData } = needy;
+        const { user: _, program, creator, city, ...needyData } = needy;
 
         return {
           ...userWithoutPassword,
@@ -632,6 +655,7 @@ export class UserService {
           profile: {
             ...needyData,
             program,
+            city,
             creator: creator ? sanitizeUser(creator) : undefined,
           },
         } as UserWithNeedyData;

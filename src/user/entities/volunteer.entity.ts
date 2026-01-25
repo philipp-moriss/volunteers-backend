@@ -12,6 +12,7 @@ import {
 import { User } from './user.entity';
 import { Program } from 'src/program/entities/program.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
+import { City } from 'src/city/entities/city.entity';
 
 @Entity({ name: 'volunteers' })
 export class Volunteer {
@@ -41,6 +42,17 @@ export class Volunteer {
 
   @ManyToMany(() => Skill, (skill) => skill.volunteers)
   skills: Skill[];
+
+  @Column({
+    name: 'city_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  cityId?: string;
+
+  @ManyToOne(() => City, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'city_id' })
+  city?: City;
 
   @Column({
     type: 'int',

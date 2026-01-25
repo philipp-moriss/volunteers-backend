@@ -13,8 +13,10 @@ import { Program } from 'src/program/entities/program.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
 import { Category } from 'src/categories/entities/category.entity';
+import { City } from 'src/city/entities/city.entity';
 import { TaskStatus } from '../types/task-status.enum';
 import { TaskApproveRole } from '../types/task-approve-role.enum';
+import { Point } from 'geojson';
 
 @Entity({ name: 'tasks' })
 export class Task {
@@ -126,6 +128,32 @@ export class Task {
     default: [],
   })
   approveBy: TaskApproveRole[];
+
+  @Column({
+    name: 'city_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  cityId?: string;
+
+  @ManyToOne(() => City, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'city_id' })
+  city?: City;
+
+  @Column({
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  address?: string;
+
+  @Column({
+    type: 'geometry',
+    spatialFeatureType: 'Point',
+    srid: 4326,
+    nullable: true,
+  })
+  location?: Point; // PostGIS Point для геолокации
 
   @CreateDateColumn({
     name: 'created_at',

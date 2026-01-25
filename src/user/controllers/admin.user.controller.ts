@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { GetUserMetadata, UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { Roles } from 'src/shared/decorators/roles.decorator';
 import { RolesGuard } from 'src/shared/guards/roles.guard';
 import { UserRole } from 'src/shared/user/type';
@@ -17,8 +18,11 @@ export class AdminUserController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  create(
+    @Body() createUserDto: CreateUserDto,
+    @GetUserMetadata() admin: UserMetadata,
+  ) {
+    return this.userService.create(createUserDto, admin.userId);
   }
 
   @ApiBearerAuth('JWT')

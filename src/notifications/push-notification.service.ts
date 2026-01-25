@@ -156,20 +156,28 @@ export class PushNotificationService {
     skillIds: string[],
     programId: string,
     payload: NotificationPayload,
+    cityId?: string,
   ): Promise<void> {
     if (skillIds.length === 0) return;
 
     // Находим волонтеров с нужными навыками в программе
-    const volunteers = await this.volunteerRepository
+    let queryBuilder = this.volunteerRepository
       .createQueryBuilder('volunteer')
       .innerJoin('volunteer.skills', 'skill')
-      .where('volunteer.programId = :programId', { programId })
-      .andWhere('skill.id IN (:...skillIds)', { skillIds })
-      .getMany();
+      .innerJoin('volunteer_programs', 'vp', 'vp.volunteer_id = volunteer.id')
+      .where('vp.program_id = :programId', { programId })
+      .andWhere('skill.id IN (:...skillIds)', { skillIds });
+
+    // Фильтруем по городу, если указан
+    if (cityId) {
+      queryBuilder = queryBuilder.andWhere('volunteer.cityId = :cityId', { cityId });
+    }
+
+    const volunteers = await queryBuilder.getMany();
 
     if (volunteers.length === 0) {
       this.logger.debug(
-        `No volunteers found with skills ${skillIds.join(', ')} in program ${programId}`,
+        `No volunteers found with skills ${skillIds.join(', ')} in program ${programId}${cityId ? ` in city ${cityId}` : ''}`,
       );
       return;
     }

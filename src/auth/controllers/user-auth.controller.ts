@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -22,6 +23,7 @@ import { GetUserMetadata, UserMetadata } from 'src/shared/decorators/get-user.de
 import { SendSmsDto } from '../dto/send-sms.dto';
 import { VerifySmsDto } from '../dto/verify-sms.dto';
 import { RefreshTokensDto } from '../dto/refresh-tokens.dto';
+import { UpdateUserDto } from '../../user/dto/update-user.dto';
 
 interface AuthenticatedRequest extends Request {
   user: UserMetadata;
@@ -101,5 +103,20 @@ export class UserAuthController {
   })
   getProfile(@GetUserMetadata() user: UserMetadata) {
     return this.authService.getMe(user);
+  }
+
+  @ApiBearerAuth('JWT')
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Обновить данные текущего пользователя' })
+  @ApiResponse({
+    status: 200,
+    description: 'Данные пользователя обновлены',
+  })
+  updateProfile(
+    @GetUserMetadata() user: UserMetadata,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.authService.updateMe(user, updateUserDto);
   }
 }
