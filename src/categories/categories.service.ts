@@ -23,7 +23,7 @@ export class CategoriesService {
 
   async findAll(): Promise<Category[]> {
     return await this.categoryRepository.find({
-      relations: ['skills'],
+      relations: ['skills', 'image'],
       order: {
         createdAt: 'ASC',
       },
@@ -33,7 +33,7 @@ export class CategoriesService {
   async findOne(id: string): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { id },
-      relations: ['skills'],
+      relations: ['skills', 'image'],
     });
 
     if (!category) {
