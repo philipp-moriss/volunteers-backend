@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CityService } from './city.service';
@@ -39,6 +40,13 @@ export class CityController {
   @Get()
   findAll() {
     return this.cityService.findAll();
+  }
+
+  @ApiOperation({ summary: 'Get leaderboard statistics by cities' })
+  @Get('leaderboard')
+  getLeaderboard(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    return this.cityService.getLeaderboardStats(limitNum);
   }
 
   @ApiOperation({ summary: 'Get a city by id' })

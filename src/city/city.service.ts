@@ -4,12 +4,23 @@ import { Repository } from 'typeorm';
 import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
 import { City } from './entities/city.entity';
+import { Volunteer } from 'src/user/entities/volunteer.entity';
+
+export interface CityLeaderboardStats {
+  id: string;
+  name: string;
+  volunteers: number;
+  points: number;
+  rank: number;
+}
 
 @Injectable()
 export class CityService {
   constructor(
     @InjectRepository(City)
     private cityRepository: Repository<City>,
+    @InjectRepository(Volunteer)
+    private volunteerRepository: Repository<Volunteer>,
   ) {}
 
   async create(createCityDto: CreateCityDto): Promise<City> {
@@ -86,5 +97,54 @@ export class CityService {
     const city = await this.findOne(id);
     await this.cityRepository.delete(id);
     return city;
+  }
+
+  /**
+   * Получить статистику по городам для лидерборда
+   * Возвращает города с количеством волонтеров и суммой очков, отсортированные по количеству волонтеров
+   */
+  async getLeaderboardStats(limit?: number): Promise<CityLeaderboardStats[]> {
+    const cities = await this.cityRepository.find({
+      order: {
+        name: 'ASC',
+      },
+    });
+
+    const stats = await Promise.all(
+      cities.map(async (city) => {
+        const volunteers = await this.volunteerRepository.find({
+          where: { cityId: city.id },
+          select: ['points'],
+        });
+
+        const volunteersCount = volunteers.length;
+        const totalPoints = volunteers.reduce((sum, v) => sum + v.points, 0);
+
+        return {
+          id: city.id,
+          name: city.name,
+          volunteers: volunteersCount,
+          points: totalPoints,
+          rank: 0, // Будет установлен после сортировки
+        };
+      }),
+    );
+
+    // Сортируем по количеству волонтеров (по убыванию), затем по очкам
+    stats.sort((a, b) => {
+      if (b.volunteers !== a.volunteers) {
+        return b.volunteers - a.volunteers;
+      }
+      return b.points - a.points;
+    });
+
+    // Устанавливаем ранги
+    stats.forEach((stat, index) => {
+      stat.rank = index + 1;
+    });
+
+    // Фильтруем города без волонтеров и применяем лимит
+    const filteredStats = stats.filter((stat) => stat.volunteers > 0);
+    return limit ? filteredStats.slice(0, limit) : filteredStats;
   }
 }
