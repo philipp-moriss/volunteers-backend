@@ -27,6 +27,10 @@ import { CategoriesService } from 'src/categories/categories.service';
 import { SkillsService } from 'src/skills/skills.service';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
+import { City } from 'src/city/entities/city.entity';
+import { CityService } from 'src/city/city.service';
+import { PointsService } from 'src/points/points.service';
+import { PointsTransactionType } from 'src/points/entities/points-transaction.entity';
 
 @Injectable()
 export class TaskService {
@@ -45,10 +49,14 @@ export class TaskService {
     private readonly skillRepository: Repository<Skill>,
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(City)
+    private readonly cityRepository: Repository<City>,
     private readonly agentService: AgentService,
     private readonly categoriesService: CategoriesService,
     private readonly skillsService: SkillsService,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly cityService: CityService,
+    private readonly pointsService: PointsService,
   ) {}
 
   async create(
@@ -71,7 +79,7 @@ export class TaskService {
     // Проверяем существование нуждающегося
     const needy = await this.needyRepository.findOne({
       where: { userId: createTaskDto.needyId },
-      relations: ['user'],
+      relations: ['user', 'city'],
       select: {
         user: {
           id: true,
@@ -124,6 +132,24 @@ export class TaskService {
       }
     }
 
+    // Получаем cityId и address из профиля нуждающегося
+    const taskCityId = needy.cityId;
+    const taskAddress = needy.address;
+
+    // Вычисляем location Point из координат города, если cityId указан
+    let taskLocation: { type: 'Point'; coordinates: [number, number] } | undefined;
+    if (taskCityId) {
+      const city = await this.cityRepository.findOne({
+        where: { id: taskCityId },
+      });
+      if (city && city.latitude && city.longitude) {
+        taskLocation = {
+          type: 'Point',
+          coordinates: [city.longitude, city.latitude], // [longitude, latitude] для GeoJSON
+        };
+      }
+    }
+
     const task = this.taskRepository.create({
       programId: createTaskDto.programId,
       needyId: createTaskDto.needyId,
@@ -136,6 +162,9 @@ export class TaskService {
       firstResponseMode: createTaskDto.firstResponseMode ?? false,
       status: TaskStatus.ACTIVE,
       skills,
+      cityId: taskCityId,
+      address: taskAddress,
+      location: taskLocation as any, // TypeORM требует any для geometry типа
     });
 
     const savedTask = await this.taskRepository.save(task);
@@ -155,6 +184,7 @@ export class TaskService {
             },
             tag: `task-${savedTask.id}`,
           },
+          taskCityId, // Передаем cityId для фильтрации уведомлений по городу
         )
         .catch((error) => {
           console.error('Failed to send push notification for new task:', error);
@@ -168,6 +198,7 @@ export class TaskService {
     status?: TaskStatus;
     categoryId?: string;
     skillIds?: string[];
+    cityId?: string;
   }): Promise<Task[]> {
     const queryBuilder = this.taskRepository
       .createQueryBuilder('task')
@@ -222,6 +253,10 @@ export class TaskService {
       queryBuilder
         .innerJoin('task.skills', 'filterSkill')
         .andWhere('filterSkill.id IN (:...skillIds)', { skillIds: filters.skillIds });
+    }
+
+    if (filters?.cityId) {
+      queryBuilder.andWhere('task.cityId = :cityId', { cityId: filters.cityId });
     }
 
     queryBuilder.orderBy('task.createdAt', 'DESC');
@@ -500,16 +535,19 @@ export class TaskService {
       // Оба подтвердили - завершаем таску
       task.status = TaskStatus.COMPLETED;
 
-      // Начисляем баллы волонтеру
+      // Начисляем баллы волонтеру через систему транзакций
       if (task.assignedVolunteerId) {
-        const volunteer = await this.volunteerRepository.findOne({
-          where: { userId: task.assignedVolunteerId },
-        });
-
-        if (volunteer) {
-          volunteer.points += task.points;
-          volunteer.completedTasksCount += 1;
-          await this.volunteerRepository.save(volunteer);
+        try {
+          await this.pointsService.createTransaction({
+            volunteerId: task.assignedVolunteerId,
+            taskId: task.id,
+            amount: task.points,
+            type: PointsTransactionType.TASK_COMPLETION,
+            description: `Points awarded for completing task: "${task.title}"`,
+          });
+        } catch (error) {
+          // Логируем ошибку, но не прерываем процесс завершения задачи
+          console.error(`Failed to create points transaction for task ${task.id}:`, error);
         }
       }
     }

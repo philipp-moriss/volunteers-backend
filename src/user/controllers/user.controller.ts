@@ -32,10 +32,10 @@ export class UserController {
     return this.userService.findAll();
   }
 
-  @ApiOperation({ summary: 'Get a user by id' })
+  @ApiOperation({ summary: 'Get a user by id with role data' })
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.userService.findOne(id);
+    return this.userService.findOneWithRoleData(id);
   }
 
   @ApiBearerAuth('JWT')

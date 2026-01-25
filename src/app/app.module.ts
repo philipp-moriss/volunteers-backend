@@ -25,6 +25,10 @@ import { Task } from 'src/task/entities/task.entity';
 import { TaskResponse } from 'src/task/entities/task-response.entity';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { PushSubscription } from 'src/notifications/entities/push-subscription.entity';
+import { CityModule } from 'src/city/city.module';
+import { City } from 'src/city/entities/city.entity';
+import { PointsModule } from 'src/points/points.module';
+import { PointsTransaction } from 'src/points/entities/points-transaction.entity';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ImageModule } from 'src/image/image.module';
 
@@ -73,6 +77,8 @@ import { ImageModule } from 'src/image/image.module';
             Task,
             TaskResponse,
             PushSubscription,
+            City,
+            PointsTransaction,
           ],
         };
       },
@@ -86,6 +92,8 @@ import { ImageModule } from 'src/image/image.module';
     TaskModule,
     NotificationsModule,
     ImageModule,
+    CityModule,
+    PointsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

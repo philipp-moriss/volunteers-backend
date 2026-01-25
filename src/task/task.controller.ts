@@ -58,12 +58,14 @@ export class TaskController {
   @ApiQuery({ name: 'status', required: false, enum: TaskStatus })
   @ApiQuery({ name: 'categoryId', required: false, type: String })
   @ApiQuery({ name: 'skillIds', required: false, type: [String] })
+  @ApiQuery({ name: 'cityId', required: false, type: String })
   @Get()
   findAll(
     @Query('programId') programId?: string,
     @Query('status') status?: TaskStatus,
     @Query('categoryId') categoryId?: string,
     @Query('skillIds') skillIds?: string | string[],
+    @Query('cityId') cityId?: string,
   ) {
     const skillIdsArray = skillIds
       ? Array.isArray(skillIds)
@@ -75,6 +77,7 @@ export class TaskController {
       status,
       categoryId,
       skillIds: skillIdsArray,
+      cityId,
     });
   }
 

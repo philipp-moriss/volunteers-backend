@@ -16,6 +16,9 @@ import { AgentModule } from 'src/agent/agent.module';
 import { CategoriesModule } from 'src/categories/categories.module';
 import { SkillsModule } from 'src/skills/skills.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { CityModule } from 'src/city/city.module';
+import { City } from 'src/city/entities/city.entity';
+import { PointsModule } from 'src/points/points.module';
 
 @Module({
   imports: [
@@ -28,11 +31,14 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
       Program,
       Skill,
       Category,
+      City,
     ]),
     AgentModule,
     CategoriesModule,
     SkillsModule,
     NotificationsModule,
+    CityModule,
+    PointsModule,
   ],
   controllers: [TaskController, TaskResponseController],
   providers: [TaskService, TaskResponseService],

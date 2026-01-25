@@ -60,4 +60,14 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsOptional()
   @IsUUID()
   creatorId?: UUID;
+
+  @ApiProperty({ required: false, description: 'City ID (for volunteer/needy)' })
+  @IsOptional()
+  @IsUUID()
+  cityId?: UUID;
+
+  @ApiProperty({ required: false, description: 'Address (for needy)' })
+  @IsOptional()
+  @IsString()
+  address?: string;
 }

@@ -24,7 +24,8 @@ services:
       - .env.development
     restart: unless-stopped
   dev-db:
-    image: postgres:17
+    image: postgis/postgis:17-3.4
+    platform: linux/amd64
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

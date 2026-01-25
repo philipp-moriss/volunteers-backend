@@ -18,6 +18,7 @@ import { EmailLoginDto } from '../dto/email-login.dto';
 import { CreateAdminUserDto, LoginUserDto } from '../dto/auth-create-user.dto';
 import { VerificationCode } from '../entities/verification-code.entity';
 import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
+import { UpdateUserDto } from '../../user/dto/update-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -256,6 +257,13 @@ export class AuthService {
     authenticatedUser: UserMetadata,
   ): Promise<UserWithRoleData> {
     return this.userService.findOneWithRoleData(authenticatedUser.userId);
+  }
+
+  async updateMe(
+    authenticatedUser: UserMetadata,
+    updateUserDto: Partial<UpdateUserDto>,
+  ): Promise<UserWithRoleData> {
+    return this.userService.update(authenticatedUser.userId, updateUserDto);
   }
 
   // ==================== PRIVATE METHODS ====================

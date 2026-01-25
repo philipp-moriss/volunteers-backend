@@ -83,21 +83,21 @@ export class CreateUserDto {
   @IsOptional()
   about?: string;
 
-  // @ApiProperty({
-  //   description: 'City ID (required for volunteer/needy)',
-  //   required: false,
-  // })
-  // @IsUUID()
-  // @IsOptional()
-  // cityId?: UUID;
+  @ApiProperty({
+    description: 'City ID (required for volunteer/needy)',
+    required: false,
+  })
+  @IsUUID()
+  @IsOptional()
+  cityId?: UUID;
 
-  // @ApiProperty({
-  //   description: 'Address (required for needy)',
-  //   required: false,
-  // })
-  // @IsUUID()
-  // @IsOptional()
-  // address?: UUID;
+  @ApiProperty({
+    description: 'Address (required for needy)',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  address?: string;
 
   @ApiProperty({
     description: 'Skills array (for volunteer)',
