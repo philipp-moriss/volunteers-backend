@@ -14,6 +14,7 @@ import { randomUUID } from 'crypto';
 export class S3Service {
   private readonly logger = new Logger(S3Service.name);
   private readonly s3Client: S3Client;
+  private readonly s3PublicClient: S3Client; // Клиент для генерации подписанных URL с публичным endpoint
   readonly bucket: string;
   private readonly region: string;
   private readonly endpoint: string;
@@ -26,12 +27,15 @@ export class S3Service {
     // Публичный endpoint для подписанных URL (если не указан, используется endpoint)
     this.publicEndpoint = this.configService.get<string>('S3_PUBLIC_ENDPOINT') || this.endpoint;
 
+    const credentials = {
+      accessKeyId: this.configService.get<string>('S3_ACCESS_KEY_ID') || '',
+      secretAccessKey: this.configService.get<string>('S3_SECRET_ACCESS_KEY') || '',
+    };
+
+    // Основной клиент для операций (upload, delete) - использует внутренний endpoint
     const s3Config: any = {
       region: this.region,
-      credentials: {
-        accessKeyId: this.configService.get<string>('S3_ACCESS_KEY_ID') || '',
-        secretAccessKey: this.configService.get<string>('S3_SECRET_ACCESS_KEY') || '',
-      },
+      credentials,
     };
 
     // Если указан endpoint (для MinIO), добавляем его
@@ -41,6 +45,19 @@ export class S3Service {
     }
 
     this.s3Client = new S3Client(s3Config);
+
+    // Отдельный клиент для генерации подписанных URL с публичным endpoint
+    const s3PublicConfig: any = {
+      region: this.region,
+      credentials,
+    };
+
+    if (this.publicEndpoint) {
+      s3PublicConfig.endpoint = this.publicEndpoint;
+      s3PublicConfig.forcePathStyle = true;
+    }
+
+    this.s3PublicClient = new S3Client(s3PublicConfig);
   }
 
   async uploadFile(
@@ -61,17 +78,12 @@ export class S3Service {
 
       await this.s3Client.send(command);
 
-      // Генерируем signed URL для доступа к файлу
+      // Генерируем signed URL для доступа к файлу используя публичный клиент
       const getCommand = new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
       });
-      let url = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 24 * 7 }); // 7 дней
-      
-      // Заменяем внутренний endpoint на публичный, если они отличаются
-      if (this.endpoint !== this.publicEndpoint && url.includes(this.endpoint)) {
-        url = url.replace(this.endpoint, this.publicEndpoint);
-      }
+      const url = await getSignedUrl(this.s3PublicClient, getCommand, { expiresIn: 3600 * 24 * 7 }); // 7 дней
 
       this.logger.log(`File uploaded successfully: ${key}`);
 
@@ -89,12 +101,8 @@ export class S3Service {
         Key: key,
       });
 
-      const url = await getSignedUrl(this.s3Client, command, { expiresIn });
-      
-      // Заменяем внутренний endpoint на публичный, если они отличаются
-      if (this.endpoint !== this.publicEndpoint && url.includes(this.endpoint)) {
-        return url.replace(this.endpoint, this.publicEndpoint);
-      }
+      // Используем публичный клиент для генерации подписанного URL
+      const url = await getSignedUrl(this.s3PublicClient, command, { expiresIn });
       
       return url;
     } catch (error) {
