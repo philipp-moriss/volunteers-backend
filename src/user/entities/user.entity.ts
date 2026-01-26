@@ -87,6 +87,14 @@ export class User {
   })
   lastLoginAt?: Date;
 
+  @Column({
+    type: 'varchar',
+    length: 10,
+    nullable: true,
+    default: 'en',
+  })
+  language?: string;
+
   @CreateDateColumn({
     name: 'created_at',
   })

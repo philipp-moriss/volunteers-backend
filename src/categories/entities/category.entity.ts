@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Skill } from 'src/skills/entities/skill.entity';
+import { Image } from 'src/image/entities/image.entity';
 
 @Entity({ name: 'categories' })
 export class Category {
@@ -22,8 +25,20 @@ export class Category {
   @Column({
     name: 'icon_svg',
     type: 'text',
+    nullable: true,
   })
-  iconSvg: string;
+  iconSvg?: string; // Оставляем для обратной совместимости
+
+  @Column({
+    name: 'image_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  imageId?: string;
+
+  @ManyToOne(() => Image, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'image_id' })
+  image?: Image;
 
   @CreateDateColumn({
     name: 'created_at',

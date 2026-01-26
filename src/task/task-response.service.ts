@@ -16,6 +16,8 @@ import { UserRole } from 'src/shared/user/type';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
+import { getNotificationTranslations } from 'src/shared/utils/notification-translations';
+import { User } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class TaskResponseService {
@@ -26,6 +28,8 @@ export class TaskResponseService {
     private readonly taskRepository: Repository<Task>,
     @InjectRepository(Volunteer)
     private readonly volunteerRepository: Repository<Volunteer>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly pushNotificationService: PushNotificationService,
   ) {}
 
@@ -130,10 +134,16 @@ export class TaskResponseService {
     }
 
     // Отправляем уведомление нуждающемуся об отклике
+    const needyUser = await this.userRepository.findOne({
+      where: { id: task.needyId },
+      select: ['language'],
+    });
+    const translations = getNotificationTranslations(needyUser?.language);
+    
     this.pushNotificationService
       .sendToUser(task.needyId, {
-        title: 'New Response to Your Task',
-        body: `Someone responded to your task "${task.title}"`,
+        title: translations.taskResponse.title,
+        body: translations.taskResponse.body(task.title),
         data: {
           type: 'task_response',
           taskId: task.id,
@@ -282,10 +292,16 @@ export class TaskResponseService {
       .execute();
 
     // Отправляем уведомление волонтеру об одобрении
+    const volunteerUser = await this.userRepository.findOne({
+      where: { id: approveVolunteerDto.volunteerId },
+      select: ['language'],
+    });
+    const translations = getNotificationTranslations(volunteerUser?.language);
+    
     this.pushNotificationService
       .sendToUser(approveVolunteerDto.volunteerId, {
-        title: 'Response Approved',
-        body: `Your response to task "${task.title}" has been approved`,
+        title: translations.responseApproved.title,
+        body: translations.responseApproved.body(task.title),
         data: {
           type: 'response_approved',
           taskId: task.id,
@@ -358,10 +374,16 @@ export class TaskResponseService {
     await this.taskResponseRepository.save(taskResponse);
 
     // Отправляем уведомление волонтеру об отклонении
+    const volunteerUser = await this.userRepository.findOne({
+      where: { id: approveVolunteerDto.volunteerId },
+      select: ['language'],
+    });
+    const translations = getNotificationTranslations(volunteerUser?.language);
+    
     this.pushNotificationService
       .sendToUser(approveVolunteerDto.volunteerId, {
-        title: 'Response Rejected',
-        body: `Your response to task "${task.title}" has been rejected`,
+        title: translations.responseRejected.title,
+        body: translations.responseRejected.body(task.title),
         data: {
           type: 'response_rejected',
           taskId: task.id,

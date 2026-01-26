@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCategoryDto {
@@ -11,10 +11,20 @@ export class CreateCategoryDto {
   name: string;
 
   @ApiProperty({
-    description: 'The icon SVG of the category',
+    description: 'The icon SVG of the category (deprecated, use imageId instead)',
     example: '<svg>...</svg>',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  iconSvg: string;
+  @IsOptional()
+  iconSvg?: string;
+
+  @ApiProperty({
+    description: 'The image ID for the category icon',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    required: false,
+  })
+  @IsUUID()
+  @IsOptional()
+  imageId?: string;
 }
