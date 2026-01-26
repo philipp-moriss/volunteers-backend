@@ -17,11 +17,14 @@ export class S3Service {
   readonly bucket: string;
   private readonly region: string;
   private readonly endpoint: string;
+  private readonly publicEndpoint: string;
 
   constructor(private readonly configService: ConfigService) {
     this.bucket = this.configService.get<string>('S3_BUCKET') || 'images';
     this.region = this.configService.get<string>('S3_REGION') || 'us-east-1';
     this.endpoint = this.configService.get<string>('S3_ENDPOINT') || 'http://localhost:9000';
+    // Публичный endpoint для подписанных URL (если не указан, используется endpoint)
+    this.publicEndpoint = this.configService.get<string>('S3_PUBLIC_ENDPOINT') || this.endpoint;
 
     const s3Config: any = {
       region: this.region,
@@ -63,7 +66,12 @@ export class S3Service {
         Bucket: this.bucket,
         Key: key,
       });
-      const url = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 24 * 7 }); // 7 дней
+      let url = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 24 * 7 }); // 7 дней
+      
+      // Заменяем внутренний endpoint на публичный, если они отличаются
+      if (this.endpoint !== this.publicEndpoint && url.includes(this.endpoint)) {
+        url = url.replace(this.endpoint, this.publicEndpoint);
+      }
 
       this.logger.log(`File uploaded successfully: ${key}`);
 
@@ -82,6 +90,12 @@ export class S3Service {
       });
 
       const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+      
+      // Заменяем внутренний endpoint на публичный, если они отличаются
+      if (this.endpoint !== this.publicEndpoint && url.includes(this.endpoint)) {
+        return url.replace(this.endpoint, this.publicEndpoint);
+      }
+      
       return url;
     } catch (error) {
       this.logger.error(`Error generating signed URL: ${error.message}`, error.stack);
