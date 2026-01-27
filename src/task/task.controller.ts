@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger'
 import { TaskService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
+import { GenerateTaskAiDto } from './dto/generate-task-ai.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ApproveTaskDto } from './dto/approve-task.dto';
 import { AssignVolunteerDto } from './dto/assign-volunteer.dto';
@@ -39,6 +40,17 @@ export class TaskController {
     @GetUserMetadata() user: UserMetadata,
   ) {
     return this.taskService.create(createTaskDto, user);
+  }
+
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Generate task structure using AI without creating task (Needy or Admin)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.NEEDY, UserRole.ADMIN)
+  @Post('ai-generate')
+  generateFromAi(
+    @Body() generateTaskAiDto: GenerateTaskAiDto,
+  ) {
+    return this.taskService.generateFromAi(generateTaskAiDto);
   }
 
   @ApiBearerAuth('JWT')

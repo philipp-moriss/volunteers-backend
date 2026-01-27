@@ -26,6 +26,7 @@ import { AgentService } from 'src/agent/agent.service';
 import { CategoriesService } from 'src/categories/categories.service';
 import { SkillsService } from 'src/skills/skills.service';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
+import { GenerateTaskAiDto } from './dto/generate-task-ai.dto';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
 import { City } from 'src/city/entities/city.entity';
 import { CityService } from 'src/city/city.service';
@@ -456,9 +457,20 @@ export class TaskService {
       throw new ForbiddenException('Volunteer is not in the same program as this task');
     }
 
-    // Назначаем волонтера
+    // Проверяем, что задача еще не назначена другому волонтеру
+    if (task.assignedVolunteerId && task.assignedVolunteerId !== assignVolunteerDto.volunteerId) {
+      throw new BadRequestException('Task is already assigned to another volunteer');
+    }
+
+    // Проверяем статус задачи
+    if (task.status !== TaskStatus.ACTIVE && task.status !== TaskStatus.IN_PROGRESS) {
+      throw new BadRequestException('Task must be active or in progress to assign a volunteer');
+    }
+
+    // Назначаем волонтера и очищаем предыдущие подтверждения
     task.assignedVolunteerId = assignVolunteerDto.volunteerId;
     task.status = TaskStatus.IN_PROGRESS;
+    task.approveBy = []; // Очищаем массив подтверждений при назначении нового волонтера
 
     return await this.taskRepository.save(task);
   }
@@ -519,6 +531,11 @@ export class TaskService {
   ): Promise<Task> {
     const task = await this.findOne(id);
 
+    // Проверяем, что задача еще не завершена
+    if (task.status === TaskStatus.COMPLETED) {
+      throw new BadRequestException('Task is already completed');
+    }
+
     // Проверяем права: только volunteer или needy
     if (userMetadata.role !== UserRole.VOLUNTEER && userMetadata.role !== UserRole.NEEDY) {
       throw new ForbiddenException('Only volunteers or needy users can approve completion');
@@ -571,32 +588,71 @@ export class TaskService {
 
     const savedTask = await this.taskRepository.save(task);
 
-    // Отправляем уведомления об изменении статуса
-    const userIds: string[] = [];
+    // Отправляем уведомления об изменении статуса отдельно для каждой роли
+    // Это позволяет правильно определить редирект на frontend
+    
+    // Уведомление для волонтера (если он назначен)
     if (task.assignedVolunteerId) {
-      userIds.push(task.assignedVolunteerId);
-    }
-    if (task.needyId) {
-      userIds.push(task.needyId);
-    }
-
-    if (userIds.length > 0) {
+      const isCompleted = task.status === TaskStatus.COMPLETED;
       this.pushNotificationService
-        .sendToUsers(userIds, {
-          title: 'Task Status Updated',
-          body:
-            task.status === TaskStatus.COMPLETED
-              ? `Task "${task.title}" has been completed`
-              : `Task "${task.title}" status has been updated`,
+        .sendToUser(task.assignedVolunteerId, {
+          title: isCompleted ? 'Task Completed' : 'Task Status Updated',
+          body: isCompleted
+            ? `Task "${task.title}" has been completed`
+            : `Task "${task.title}" status has been updated`,
           data: {
             type: 'task_status_updated',
             taskId: task.id,
             status: task.status,
+            role: 'volunteer', // Указываем роль для правильного редиректа
           },
           tag: `task-${task.id}`,
         })
         .catch((error) => {
-          console.error('Failed to send push notification for task status update:', error);
+          console.error('Failed to send push notification to volunteer for task status update:', error);
+        });
+    }
+
+    // Уведомление для нуждающегося
+    if (task.needyId) {
+      const isCompleted = task.status === TaskStatus.COMPLETED;
+      // Определяем, кто инициировал обновление статуса
+      const isVolunteerApproval = approveTaskDto.role === TaskApproveRole.VOLUNTEER;
+      const isNeedyApproval = approveTaskDto.role === TaskApproveRole.NEEDY;
+      
+      let title = 'Task Status Updated';
+      let body = `Task "${task.title}" status has been updated`;
+      
+      if (isCompleted) {
+        if (isVolunteerApproval) {
+          // Волонтер выполнил задачу - нуждающемуся нужно её подтвердить
+          title = 'Task Ready for Approval';
+          body = `Volunteer has completed task "${task.title}". Please approve it.`;
+        } else if (isNeedyApproval) {
+          // Нуждающийся подтвердил - задача завершена
+          title = 'Task Completed';
+          body = `Task "${task.title}" has been completed`;
+        }
+      } else if (isVolunteerApproval) {
+        // Волонтер подтвердил выполнение, но нуждающийся еще не подтвердил
+        title = 'Task Completion Pending';
+        body = `Volunteer has marked task "${task.title}" as completed. Please review and approve.`;
+      }
+      
+      this.pushNotificationService
+        .sendToUser(task.needyId, {
+          title,
+          body,
+          data: {
+            type: 'task_status_updated',
+            taskId: task.id,
+            status: task.status,
+            role: 'needy', // Указываем роль для правильного редиректа
+          },
+          tag: `task-${task.id}`,
+        })
+        .catch((error) => {
+          console.error('Failed to send push notification to needy for task status update:', error);
         });
     }
 
@@ -754,5 +810,48 @@ export class TaskService {
 
     // Используем существующий метод create для сохранения таски
     return this.create(createTaskDto, userMetadata);
+  }
+
+  async generateFromAi(
+    generateTaskAiDto: GenerateTaskAiDto,
+  ): Promise<Partial<CreateTaskDto>> {
+    // Получаем все категории и скилы
+    const categories = await this.categoriesService.findAll();
+    const skills = await this.skillsService.findAll();
+
+    // Формируем JSON строки с категориями и скилами (только id и name)
+    const categoriesJson = JSON.stringify(
+      categories.map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+      })),
+    );
+
+    const skillsJson = JSON.stringify(
+      skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        categoryId: skill.categoryId,
+      })),
+    );
+
+    // Вызываем AI для генерации структуры таски
+    const aiGeneratedTask = await this.agentService.processTaskAiCreation(
+      generateTaskAiDto.prompt,
+      categoriesJson,
+      skillsJson,
+    );
+
+    // Возвращаем только структуру без programId и needyId (они будут добавлены на фронте)
+    return {
+      type: aiGeneratedTask.type,
+      title: aiGeneratedTask.title,
+      description: aiGeneratedTask.description,
+      details: aiGeneratedTask.details,
+      points: aiGeneratedTask.points ?? 10,
+      categoryId: aiGeneratedTask.categoryId,
+      skillIds: aiGeneratedTask.skillIds,
+      firstResponseMode: aiGeneratedTask.firstResponseMode ?? false,
+    };
   }
 }
