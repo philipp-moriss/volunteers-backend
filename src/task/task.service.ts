@@ -488,6 +488,7 @@ export class TaskService {
     task.assignedVolunteerId = undefined;
     task.assignedVolunteer = undefined;
     task.status = TaskStatus.ACTIVE;
+    task.approveBy = [];
 
     const savedTask = await this.taskRepository.save(task);
 
