@@ -116,11 +116,11 @@ export class Task {
     type: 'uuid',
     nullable: true,
   })
-  assignedVolunteerId?: string;
+  assignedVolunteerId?: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'assigned_volunteer_id' })
-  assignedVolunteer?: User;
+  assignedVolunteer?: User | null;
 
   @Column({
     name: 'approve_by',

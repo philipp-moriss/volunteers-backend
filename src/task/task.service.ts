@@ -485,12 +485,12 @@ export class TaskService {
 
     // Снимаем назначение
     const previousVolunteerId = task.assignedVolunteerId;
-    task.assignedVolunteerId = undefined;
-    task.assignedVolunteer = undefined;
+    task.assignedVolunteerId = null;
+    task.assignedVolunteer = null;
     task.status = TaskStatus.ACTIVE;
     task.approveBy = [];
 
-    await this.taskRepository.update(task.id, task);
+    const savedTask = await this.taskRepository.save(task);
 
     // Отправляем уведомление волонтеру об отмене назначения
     if (previousVolunteerId) {
@@ -509,7 +509,7 @@ export class TaskService {
         });
     }
 
-    return task;
+    return savedTask;
   }
 
   async approveCompletion(
