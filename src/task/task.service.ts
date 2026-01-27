@@ -490,7 +490,7 @@ export class TaskService {
     task.status = TaskStatus.ACTIVE;
     task.approveBy = [];
 
-    const savedTask = await this.taskRepository.save(task);
+    const savedTask = await this.taskRepository.update(task.id, task);
 
     // Отправляем уведомление волонтеру об отмене назначения
     if (previousVolunteerId) {
