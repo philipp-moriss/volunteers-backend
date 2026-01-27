@@ -321,7 +321,22 @@ export class TaskService {
       throw new NotFoundException(`Task with ID ${id} not found`);
     }
 
-    // Дополнительная защита: очищаем чувствительные данные
+    if (task.assignedVolunteerId) {
+      const volunteer = await this.volunteerRepository.findOne({
+        where: { userId: task.assignedVolunteerId },
+        relations: ['city'],
+      });
+
+      if (volunteer?.city && task.assignedVolunteer) {
+        (task.assignedVolunteer as any).city = {
+          id: volunteer.city.id,
+          name: volunteer.city.name,
+          latitude: volunteer.city.latitude,
+          longitude: volunteer.city.longitude,
+        };
+      }
+    }
+
     if (task.needy) {
       task.needy = sanitizeUser(task.needy) as any;
     }
