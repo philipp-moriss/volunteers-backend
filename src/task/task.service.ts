@@ -486,6 +486,7 @@ export class TaskService {
     // Снимаем назначение
     const previousVolunteerId = task.assignedVolunteerId;
     task.assignedVolunteerId = undefined;
+    task.assignedVolunteer = undefined;
     task.status = TaskStatus.ACTIVE;
 
     const savedTask = await this.taskRepository.save(task);
