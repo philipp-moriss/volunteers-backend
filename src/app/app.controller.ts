@@ -2,9 +2,6 @@ import { Controller, Delete, Get, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppService } from './app.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { Roles } from 'src/shared/decorators/roles.decorator';
-import { RolesGuard } from 'src/shared/guards/roles.guard';
-import { UserRole } from 'src/shared/user/type';
 
 @ApiTags('Admin - Database')
 @Controller()
@@ -19,7 +16,7 @@ export class AppController {
   @ApiBearerAuth('JWT')
   @ApiOperation({ 
     summary: 'Clear all data from database',
-    description: '⚠️ WARNING: This will delete ALL data from ALL tables. Use with caution! Only available for ADMIN users.'
+    description: '⚠️ WARNING: This will delete ALL data from ALL tables. Use with caution!'
   })
   @ApiResponse({ 
     status: 200, 
@@ -33,9 +30,7 @@ export class AppController {
     },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard)
   @Delete('admin/database/clear')
   async clearDatabase() {
     return this.appService.clearDatabase();
