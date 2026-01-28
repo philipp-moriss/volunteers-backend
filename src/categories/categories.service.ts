@@ -8,12 +8,15 @@ import { Repository } from 'typeorm';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Category } from './entities/category.entity';
+import { Skill } from 'src/skills/entities/skill.entity';
 
 @Injectable()
 export class CategoriesService {
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(Skill)
+    private readonly skillRepository: Repository<Skill>,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
@@ -64,9 +67,30 @@ export class CategoriesService {
       throw new NotFoundException(`Category with ID ${id} not found`);
     }
 
-    if (category.skills && category.skills.length > 0) {
+    // Удаляем только те скиллы категории, которые нигде не используются
+    const removableSkills = await this.skillRepository
+      .createQueryBuilder('skill')
+      .leftJoin('skill.volunteers', 'volunteer')
+      .leftJoin('task_skills', 'taskSkill', 'taskSkill.skill_id = skill.id')
+      .where('skill.categoryId = :categoryId', { categoryId: id })
+      .groupBy('skill.id')
+      .having(
+        'COUNT(DISTINCT volunteer.id) = 0 AND COUNT(DISTINCT taskSkill.task_id) = 0',
+      )
+      .getMany();
+
+    if (removableSkills.length > 0) {
+      await this.skillRepository.remove(removableSkills);
+    }
+
+    // Если после очистки остались скиллы, значит они используются волонтёрами или тасками
+    const remainingSkillsCount = await this.skillRepository.count({
+      where: { categoryId: id },
+    });
+
+    if (remainingSkillsCount > 0) {
       throw new ConflictException(
-        `Cannot delete category with ID ${id} because it has associated skills`,
+        `Cannot delete category with ID ${id} because it has ${remainingSkillsCount} skills used by volunteers or tasks`,
       );
     }
 
