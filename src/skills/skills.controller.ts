@@ -1,19 +1,20 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  Query,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import { SkillsService } from './skills.service';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
 import { QuerySkillsDto } from './dto/query.dto';
+import { BulkUpdateSkillsDto } from './dto/bulk-update-skills.dto';
 
 @Controller('skills')
 export class SkillsController {
@@ -38,6 +39,12 @@ export class SkillsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateSkillDto: UpdateSkillDto) {
     return this.skillsService.update(id, updateSkillDto);
+  }
+
+  @Patch()
+  @HttpCode(HttpStatus.OK)
+  bulkUpdate(@Body() bulkUpdateSkillsDto: BulkUpdateSkillsDto) {
+    return this.skillsService.bulkUpdate(bulkUpdateSkillsDto);
   }
 
   @Delete(':id')

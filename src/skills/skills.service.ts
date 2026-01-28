@@ -6,9 +6,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { UUID } from 'crypto';
 import { Category } from 'src/categories/entities/category.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
+import { BulkUpdateSkillsDto } from './dto/bulk-update-skills.dto';
 import { Skill } from './entities/skill.entity';
 
 @Injectable()
@@ -87,6 +88,35 @@ export class SkillsService {
     });
 
     return await this.skillRepository.save(skill);
+  }
+
+  async bulkUpdate(bulkUpdateSkillsDto: BulkUpdateSkillsDto): Promise<Skill[]> {
+    const ids = bulkUpdateSkillsDto.items.map((item) => item.id);
+
+    const skills = await this.skillRepository.findBy({ id: In(ids) });
+
+    if (skills.length !== ids.length) {
+      throw new NotFoundException('One or more skills not found');
+    }
+
+    const skillsById = new Map<string, Skill>();
+
+    skills.forEach((skill) => {
+      skillsById.set(skill.id, skill);
+    });
+
+    bulkUpdateSkillsDto.items.forEach((item) => {
+      const skill = skillsById.get(item.id);
+
+      if (!skill) {
+        return;
+      }
+
+      skill.name = item.name;
+      skill.iconSvg = item.iconSvg;
+    });
+
+    return await this.skillRepository.save(Array.from(skillsById.values()));
   }
 
   async remove(id: string): Promise<void> {
