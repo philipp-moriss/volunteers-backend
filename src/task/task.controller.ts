@@ -111,6 +111,19 @@ export class TaskController {
     return this.taskService.getAssignedTasks(user);
   }
 
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get suitable tasks for volunteer by skills, city and optional status' })
+  @ApiQuery({ name: 'status', required: false, enum: TaskStatus })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.VOLUNTEER)
+  @Get('volunteer-suitable')
+  getTasksForVolunteer(
+    @GetUserMetadata() user: UserMetadata,
+    @Query('status') status?: TaskStatus,
+  ) {
+    return this.taskService.getTasksForVolunteer(user, status);
+  }
+
   @ApiOperation({ summary: 'Get a task by id' })
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {

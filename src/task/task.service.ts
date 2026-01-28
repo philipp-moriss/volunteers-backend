@@ -749,6 +749,34 @@ export class TaskService {
     });
   }
 
+  async getTasksForVolunteer(
+    userMetadata: UserMetadata,
+    status?: TaskStatus,
+  ): Promise<Task[]> {
+    if (userMetadata.role !== UserRole.VOLUNTEER) {
+      throw new ForbiddenException('Only volunteers can view suitable tasks');
+    }
+
+    const volunteer = await this.volunteerRepository.findOne({
+      where: { userId: userMetadata.userId },
+      relations: ['skills'],
+    });
+
+    if (!volunteer) {
+      throw new NotFoundException('Volunteer profile not found');
+    }
+
+    const skillIds = volunteer.skills?.map((skill) => skill.id) ?? [];
+    const cityId = volunteer.cityId;
+
+    return this.findAll(undefined, {
+      status,
+      categoryId: undefined,
+      skillIds: skillIds.length > 0 ? skillIds : undefined,
+      cityId,
+    });
+  }
+
   async createFromAi(
     createTaskAiDto: CreateTaskAiDto,
     userMetadata: UserMetadata,
