@@ -10,6 +10,7 @@ import { Volunteer } from './entities/volunteer.entity';
 import { Admin } from './entities/admin.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
 import { Program } from 'src/program/entities/program.entity';
+import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
 import {
   UserWithRoleData,
   UserWithVolunteerData,
@@ -262,9 +263,37 @@ export class UserService {
         // Автоматически назначаем волонтера на все существующие программы
         const allPrograms = await programRepository.find();
         
+        // Если программ нет, назначаем дефолтную программу
+        let programsToAssign = allPrograms;
+        if (allPrograms.length === 0) {
+          const defaultProgram = await programRepository.findOne({
+            where: { id: DEFAULT_PROGRAM_ID },
+          });
+          if (defaultProgram) {
+            programsToAssign = [defaultProgram];
+          } else {
+            // Если дефолтной программы нет, создаем волонтера без программ (будет ошибка при создании задачи)
+            // Но лучше выбросить ошибку здесь
+            throw new BadRequestException(
+              `No programs found and default program ${DEFAULT_PROGRAM_ID} not found. Please contact administrator.`,
+            );
+          }
+        } else {
+          // Убеждаемся, что дефолтная программа включена
+          const hasDefaultProgram = allPrograms.some(p => p.id === DEFAULT_PROGRAM_ID);
+          if (!hasDefaultProgram) {
+            const defaultProgram = await programRepository.findOne({
+              where: { id: DEFAULT_PROGRAM_ID },
+            });
+            if (defaultProgram) {
+              programsToAssign = [...allPrograms, defaultProgram];
+            }
+          }
+        }
+        
         const volunteer = volunteerRepository.create({
           userId,
-          programs: allPrograms,
+          programs: programsToAssign,
           skills: skillEntities,
           cityId,
         });

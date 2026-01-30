@@ -8,6 +8,7 @@ import { Admin } from 'src/user/entities/admin.entity';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { User } from 'src/user/entities/user.entity';
 import { UserRole, UserStatus } from 'src/shared/user/type';
+import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
 
 @Injectable()
 export class ProgramService {
@@ -71,6 +72,13 @@ export class ProgramService {
   }
 
   async remove(id: string): Promise<Program> {
+    // Запрещаем удаление дефолтной программы
+    if (id === DEFAULT_PROGRAM_ID) {
+      throw new BadRequestException(
+        `Cannot delete default program "${DEFAULT_PROGRAM_ID}". This program is required for system operation.`,
+      );
+    }
+
     const program = await this.findOne(id);
     await this.programRepository.delete(id);
     return program;

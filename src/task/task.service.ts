@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -32,9 +33,12 @@ import { City } from 'src/city/entities/city.entity';
 import { CityService } from 'src/city/city.service';
 import { PointsService } from 'src/points/points.service';
 import { PointsTransactionType } from 'src/points/entities/points-transaction.entity';
+import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
 
 @Injectable()
 export class TaskService {
+  private readonly logger = new Logger(TaskService.name);
+
   constructor(
     @InjectRepository(Task)
     private readonly taskRepository: Repository<Task>,
@@ -69,12 +73,28 @@ export class TaskService {
       throw new ForbiddenException('Only needy users or admins can create tasks');
     }
 
-    // Проверяем существование программы
-    const program = await this.programRepository.findOne({
-      where: { id: createTaskDto.programId },
+    // Проверяем существование программы, используем дефолтную если не найдена
+    let programId = createTaskDto.programId;
+    let program = await this.programRepository.findOne({
+      where: { id: programId },
     });
+
+    // Если программа не найдена, используем дефолтную
     if (!program) {
-      throw new NotFoundException(`Program with ID ${createTaskDto.programId} not found`);
+      this.logger.warn(
+        `Program ${programId} not found, using default program ${DEFAULT_PROGRAM_ID}`,
+      );
+      programId = DEFAULT_PROGRAM_ID;
+      program = await this.programRepository.findOne({
+        where: { id: programId },
+      });
+
+      // Если дефолтная программа тоже не найдена - критическая ошибка
+      if (!program) {
+        throw new BadRequestException(
+          `Default program ${DEFAULT_PROGRAM_ID} not found. Please contact administrator.`,
+        );
+      }
     }
 
     // Проверяем существование нуждающегося
@@ -152,7 +172,7 @@ export class TaskService {
     }
 
     const task = this.taskRepository.create({
-      programId: createTaskDto.programId,
+      programId: programId, // Используем programId (может быть дефолтным)
       needyId: createTaskDto.needyId,
       type: createTaskDto.type,
       title: createTaskDto.title,
@@ -170,12 +190,40 @@ export class TaskService {
 
     const savedTask = await this.taskRepository.save(task);
 
-    // Отправляем уведомление волонтерам с подходящими навыками
+    // ВСЕГДА отправляем уведомления всем менторам (волонтерам) программы
+    if (programId) {
+      this.pushNotificationService
+        .sendToAllProgramVolunteers(
+          programId, // Используем programId (может быть дефолтным)
+          {
+            title: 'New Task Available',
+            body: savedTask.title,
+            data: {
+              type: 'new_task',
+              taskId: savedTask.id,
+            },
+            tag: `task-${savedTask.id}`,
+          },
+          taskCityId, // Фильтр по городу
+        )
+        .catch((error) => {
+          console.error(
+            `Failed to send push notification to all mentors for task ${savedTask.id} in program ${programId}:`,
+            error,
+          );
+        });
+    } else {
+      console.warn(
+        `Task ${savedTask.id} created without programId - skipping mentor notifications`,
+      );
+    }
+
+    // Дополнительно: если указаны навыки, отправляем приоритетное уведомление волонтерам с навыками
     if (createTaskDto.skillIds && createTaskDto.skillIds.length > 0) {
       this.pushNotificationService
         .sendToVolunteersBySkills(
           createTaskDto.skillIds,
-          createTaskDto.programId,
+          programId, // Используем programId (может быть дефолтным)
           {
             title: 'New Task Available',
             body: savedTask.title,
