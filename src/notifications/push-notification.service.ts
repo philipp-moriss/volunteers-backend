@@ -187,6 +187,43 @@ export class PushNotificationService {
   }
 
   /**
+   * Отправка уведомления всем волонтерам (менторам) программы
+   * Отправляет уведомления всем волонтерам программы независимо от навыков
+   */
+  async sendToAllProgramVolunteers(
+    programId: string,
+    payload: NotificationPayload,
+    cityId?: string,
+  ): Promise<void> {
+    // Находим всех волонтеров программы
+    let queryBuilder = this.volunteerRepository
+      .createQueryBuilder('volunteer')
+      .innerJoin('volunteer_programs', 'vp', 'vp.volunteer_id = volunteer.id')
+      .where('vp.program_id = :programId', { programId });
+
+    // Фильтруем по городу, если указан
+    if (cityId) {
+      queryBuilder = queryBuilder.andWhere('volunteer.cityId = :cityId', { cityId });
+    }
+
+    const volunteers = await queryBuilder.getMany();
+
+    if (volunteers.length === 0) {
+      this.logger.debug(
+        `No volunteers found in program ${programId}${cityId ? ` in city ${cityId}` : ''}`,
+      );
+      return;
+    }
+
+    this.logger.debug(
+      `Found ${volunteers.length} volunteers in program ${programId}${cityId ? ` in city ${cityId}` : ''}`,
+    );
+
+    const userIds = volunteers.map((v) => v.userId);
+    await this.sendToUsers(userIds, payload);
+  }
+
+  /**
    * Отправка уведомления всем подписанным пользователям
    */
   async sendToAll(payload: NotificationPayload): Promise<void> {
