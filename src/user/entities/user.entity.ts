@@ -95,6 +95,13 @@ export class User {
   })
   language?: string;
 
+  @Column({
+    name: 'onboarding_completed',
+    type: 'boolean',
+    default: false,
+  })
+  onboardingCompleted: boolean;
+
   @CreateDateColumn({
     name: 'created_at',
   })

@@ -297,6 +297,7 @@ export class UserService {
         'createdAt',
         'updatedAt',
         'lastLoginAt',
+        'onboardingCompleted',
       ],
     });
   }
@@ -317,6 +318,7 @@ export class UserService {
         'createdAt',
         'updatedAt',
         'lastLoginAt',
+        'onboardingCompleted',
       ],
     });
 
@@ -587,6 +589,7 @@ export class UserService {
         'createdAt',
         'updatedAt',
         'lastLoginAt',
+        'onboardingCompleted',
       ],
     });
 
