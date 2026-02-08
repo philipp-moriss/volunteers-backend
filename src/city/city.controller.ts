@@ -11,11 +11,16 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { CityService } from './city.service';
 import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
+import { DeleteCitiesDto } from './dto/delete-cities.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/shared/guards/roles.guard';
 import { Roles } from 'src/shared/decorators/roles.decorator';
@@ -40,6 +45,44 @@ export class CityController {
   @Get()
   findAll() {
     return this.cityService.findAll();
+  }
+
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Initialize cities from Excel file (Admin only)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Excel .xlsx with city names' },
+      },
+    },
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post('init')
+  @UseInterceptors(FileInterceptor('file'))
+  async initFromExcel(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    const isXlsx =
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      file.originalname?.toLowerCase().endsWith('.xlsx');
+    if (!isXlsx) {
+      throw new BadRequestException('Only .xlsx files are allowed');
+    }
+    return this.cityService.initFromExcel(file.buffer);
+  }
+
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Delete multiple cities by ids (Admin only)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Delete('bulk')
+  @HttpCode(HttpStatus.OK)
+  async removeMany(@Body() dto: DeleteCitiesDto) {
+    return this.cityService.removeMany(dto.ids);
   }
 
   @ApiOperation({ summary: 'Get leaderboard statistics by cities' })

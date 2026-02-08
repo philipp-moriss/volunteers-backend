@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as ExcelJS from 'exceljs';
 import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
 import { City } from './entities/city.entity';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
+
+/** Координаты по умолчанию (центр Израиля) для городов из Excel без координат */
+const DEFAULT_LATITUDE = 31.5;
+const DEFAULT_LONGITUDE = 34.75;
 
 export interface CityLeaderboardStats {
   id: string;
@@ -97,6 +102,76 @@ export class CityService {
     const city = await this.findOne(id);
     await this.cityRepository.delete(id);
     return city;
+  }
+
+  /**
+   * Массовое удаление городов по списку id
+   */
+  async removeMany(ids: string[]): Promise<{ deleted: number; notFound: string[] }> {
+    const notFound: string[] = [];
+    let deleted = 0;
+    for (const id of ids) {
+      const city = await this.cityRepository.findOne({ where: { id } });
+      if (!city) {
+        notFound.push(id);
+        continue;
+      }
+      await this.cityRepository.delete(id);
+      deleted++;
+    }
+    return { deleted, notFound };
+  }
+
+  /**
+   * Инициализация городов из Excel (.xlsx).
+   * Собирает уникальные непустые названия из всех ячеек листа.
+   * Координаты по умолчанию (центр Израиля), если в файле нет колонок с координатами.
+   */
+  async initFromExcel(buffer: Buffer): Promise<{ created: number; skipped: number; names: string[] }> {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) {
+      throw new BadRequestException('Excel file has no worksheets');
+    }
+
+    const nameSet = new Set<string>();
+    sheet.eachRow((row, _rowNumber) => {
+      row.eachCell((cell) => {
+        const value = cell.value;
+        const str = value != null ? String(value).trim() : '';
+        // Пропускаем пустые и чисто числовые значения (например заголовки 1,2,3)
+        if (str && isNaN(Number(str))) {
+          nameSet.add(str);
+        }
+      });
+    });
+
+    const names = Array.from(nameSet);
+    let created = 0;
+    let skipped = 0;
+
+    for (const name of names) {
+      const existing = await this.cityRepository.findOne({ where: { name } });
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      const location = {
+        type: 'Point',
+        coordinates: [DEFAULT_LONGITUDE, DEFAULT_LATITUDE],
+      };
+      const city = this.cityRepository.create({
+        name,
+        latitude: DEFAULT_LATITUDE,
+        longitude: DEFAULT_LONGITUDE,
+        location: location as any,
+      });
+      await this.cityRepository.save(city);
+      created++;
+    }
+
+    return { created, skipped, names };
   }
 
   /**
