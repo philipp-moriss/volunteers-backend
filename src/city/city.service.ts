@@ -58,7 +58,22 @@ export class CityService {
     return this.cityRepository.save(city);
   }
 
-  async findAll(): Promise<(City & { volunteers: User[] })[]> {
+  async findAll(): Promise<Array<City & { volunteers: Array<{
+    id: string;
+    phone?: string;
+    email?: string;
+    role: string;
+    status: string;
+    firstName?: string;
+    lastName?: string;
+    photo?: string;
+    about?: string;
+    language?: string;
+    onboardingCompleted: boolean;
+    createdAt: string;
+    updatedAt: string;
+    lastLoginAt?: string;
+  }> }>> {
     const cities = await this.cityRepository.find({
       order: {
         name: 'ASC',
@@ -90,6 +105,8 @@ export class CityService {
               lastName: user.lastName,
               photo: user.photo,
               about: user.about,
+              language: user.language,
+              onboardingCompleted: user.onboardingCompleted,
               createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
               updatedAt: user.updatedAt?.toISOString() || new Date().toISOString(),
               lastLoginAt: user.lastLoginAt?.toISOString(),
