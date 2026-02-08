@@ -102,14 +102,16 @@ export class ProgramService {
         { programId },
       )
       .innerJoinAndSelect('volunteer.user', 'user')
+      .leftJoinAndSelect('volunteer.city', 'city')
       .where('user.role = :role', { role: UserRole.VOLUNTEER })
       // .andWhere('user.status = :status', { status: UserStatus.APPROVED })
       .getMany();
 
     const users = volunteers
-      .map((volunteer) => volunteer.user)
-      .filter((user): user is User => user !== null && user !== undefined)
-      .map((user) => {
+      .map((volunteer) => {
+        const user = volunteer.user;
+        if (!user) return null;
+
         // Преобразуем даты в ISO строки для консистентности с фронтендом
         return {
           id: user.id,
@@ -124,8 +126,21 @@ export class ProgramService {
           createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
           updatedAt: user.updatedAt?.toISOString() || new Date().toISOString(),
           lastLoginAt: user.lastLoginAt?.toISOString(),
+          cityId: volunteer.cityId || null,
+          city: volunteer.city
+            ? {
+                id: volunteer.city.id,
+                name: volunteer.city.name,
+                latitude: volunteer.city.latitude,
+                longitude: volunteer.city.longitude,
+                location: volunteer.city.location,
+                createdAt: volunteer.city.createdAt?.toISOString(),
+                updatedAt: volunteer.city.updatedAt?.toISOString(),
+              }
+            : null,
         };
-      });
+      })
+      .filter((user): user is NonNullable<typeof user> => user !== null);
 
     return users;
   }
