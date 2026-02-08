@@ -6,6 +6,8 @@ import { CreateCityDto } from './dto/create-city.dto';
 import { UpdateCityDto } from './dto/update-city.dto';
 import { City } from './entities/city.entity';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
+import { User } from 'src/user/entities/user.entity';
+import { UserRole } from 'src/shared/user/type';
 
 /** Координаты по умолчанию (центр Израиля) для городов из Excel без координат */
 const DEFAULT_LATITUDE = 31.5;
@@ -26,6 +28,8 @@ export class CityService {
     private cityRepository: Repository<City>,
     @InjectRepository(Volunteer)
     private volunteerRepository: Repository<Volunteer>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
   async create(createCityDto: CreateCityDto): Promise<City> {
@@ -54,12 +58,52 @@ export class CityService {
     return this.cityRepository.save(city);
   }
 
-  async findAll(): Promise<City[]> {
-    return this.cityRepository.find({
+  async findAll(): Promise<(City & { volunteers: User[] })[]> {
+    const cities = await this.cityRepository.find({
       order: {
         name: 'ASC',
       },
     });
+
+    // Получаем волонтеров для каждого города
+    const citiesWithVolunteers = await Promise.all(
+      cities.map(async (city) => {
+        const volunteers = await this.volunteerRepository
+          .createQueryBuilder('volunteer')
+          .innerJoinAndSelect('volunteer.user', 'user')
+          .leftJoinAndSelect('volunteer.city', 'city')
+          .where('volunteer.cityId = :cityId', { cityId: city.id })
+          .andWhere('user.role = :role', { role: UserRole.VOLUNTEER })
+          .getMany();
+
+        const users = volunteers
+          .map((volunteer) => volunteer.user)
+          .filter((user): user is User => user !== null && user !== undefined)
+          .map((user) => {
+            return {
+              id: user.id,
+              phone: user.phone,
+              email: user.email,
+              role: user.role,
+              status: user.status,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              photo: user.photo,
+              about: user.about,
+              createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+              updatedAt: user.updatedAt?.toISOString() || new Date().toISOString(),
+              lastLoginAt: user.lastLoginAt?.toISOString(),
+            };
+          });
+
+        return {
+          ...city,
+          volunteers: users,
+        };
+      }),
+    );
+
+    return citiesWithVolunteers;
   }
 
   async findOne(id: string): Promise<City> {
