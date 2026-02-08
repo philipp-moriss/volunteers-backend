@@ -129,7 +129,8 @@ export class CityService {
    */
   async initFromExcel(buffer: Buffer): Promise<{ created: number; skipped: number; names: string[] }> {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ExcelJS typings conflict with Node Buffer
+    await workbook.xlsx.load(buffer as any);
     const sheet = workbook.worksheets[0];
     if (!sheet) {
       throw new BadRequestException('Excel file has no worksheets');
