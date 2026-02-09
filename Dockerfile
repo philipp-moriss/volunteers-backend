@@ -40,7 +40,6 @@ COPY --from=builder /app/dist ./dist
 # Удаляем build tools после установки зависимостей
 RUN apk del python3 make g++
 
-
 EXPOSE 4000
 
 # Запускаем приложение в production режиме
