@@ -4,13 +4,27 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Point } from 'geojson';
+import { CityGroup } from 'src/city-group/entities/city-group.entity';
 
 @Entity({ name: 'cities' })
 export class City {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({
+    name: 'group_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  groupId?: string | null;
+
+  @ManyToOne(() => CityGroup, (group) => group.cities, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'group_id' })
+  group?: CityGroup | null;
 
   @Column({
     type: 'varchar',

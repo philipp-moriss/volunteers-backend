@@ -31,6 +31,7 @@ import { GenerateTaskAiDto } from './dto/generate-task-ai.dto';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
 import { City } from 'src/city/entities/city.entity';
 import { CityService } from 'src/city/city.service';
+import { CityGroupService } from 'src/city-group/city-group.service';
 import { PointsService } from 'src/points/points.service';
 import { PointsTransactionType } from 'src/points/entities/points-transaction.entity';
 import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
@@ -61,6 +62,7 @@ export class TaskService {
     private readonly skillsService: SkillsService,
     private readonly pushNotificationService: PushNotificationService,
     private readonly cityService: CityService,
+    private readonly cityGroupService: CityGroupService,
     private readonly pointsService: PointsService,
   ) {}
 
@@ -248,6 +250,8 @@ export class TaskService {
     categoryId?: string;
     skillIds?: string[];
     cityId?: string;
+    /** When set, show tasks with task.cityId IN (cityIds) OR task.cityId IS NULL. Empty array = only task.cityId IS NULL. */
+    cityIds?: string[];
   }): Promise<Task[]> {
     const queryBuilder = this.taskRepository
       .createQueryBuilder('task')
@@ -304,8 +308,20 @@ export class TaskService {
         .andWhere('filterSkill.id IN (:...skillIds)', { skillIds: filters.skillIds });
     }
 
-    if (filters?.cityId) {
-      queryBuilder.andWhere('task.cityId = :cityId', { cityId: filters.cityId });
+    if (filters?.cityIds !== undefined) {
+      if (filters.cityIds.length === 0) {
+        queryBuilder.andWhere('task.cityId IS NULL');
+      } else {
+        queryBuilder.andWhere(
+          '(task.cityId IN (:...cityIds) OR task.cityId IS NULL)',
+          { cityIds: filters.cityIds },
+        );
+      }
+    } else if (filters?.cityId) {
+      queryBuilder.andWhere(
+        '(task.cityId = :cityId OR task.cityId IS NULL)',
+        { cityId: filters.cityId },
+      );
     }
 
     queryBuilder.orderBy('task.createdAt', 'DESC');
@@ -815,14 +831,24 @@ export class TaskService {
     }
 
     const skillIds = volunteer.skills?.map((skill) => skill.id) ?? [];
-    const cityId = volunteer.cityId;
+    const cityIds = await this.resolveCityIdsForVolunteer(volunteer.cityId ?? undefined);
 
     return this.findAll(undefined, {
       status,
       categoryId: undefined,
       skillIds: skillIds.length > 0 ? skillIds : undefined,
-      cityId,
+      cityIds,
     });
+  }
+
+  /**
+   * Resolves city IDs for task filter: volunteer with no city => []; with city => [cityId] or group city IDs.
+   */
+  private async resolveCityIdsForVolunteer(volunteerCityId: string | undefined): Promise<string[]> {
+    if (!volunteerCityId) {
+      return [];
+    }
+    return this.cityGroupService.getCityIdsForCity(volunteerCityId);
   }
 
   async createFromAi(

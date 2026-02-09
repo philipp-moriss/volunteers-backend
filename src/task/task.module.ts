@@ -18,6 +18,7 @@ import { SkillsModule } from 'src/skills/skills.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { CityModule } from 'src/city/city.module';
 import { City } from 'src/city/entities/city.entity';
+import { CityGroupModule } from 'src/city-group/city-group.module';
 import { PointsModule } from 'src/points/points.module';
 
 @Module({
@@ -38,6 +39,7 @@ import { PointsModule } from 'src/points/points.module';
     SkillsModule,
     NotificationsModule,
     CityModule,
+    CityGroupModule,
     PointsModule,
   ],
   controllers: [TaskController, TaskResponseController],
