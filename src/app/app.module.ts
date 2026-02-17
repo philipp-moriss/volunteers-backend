@@ -14,6 +14,7 @@ import { AuthModule } from 'src/auth/auth.module';
 
 
 import { VerificationCode } from 'src/auth/entities/verification-code.entity';
+import { VolunteerRating } from 'src/volunteer-rating/entities/volunteer-rating.entity';
 import { ProgramModule } from 'src/program/program.module';
 import { Program } from 'src/program/entities/program.entity';
 import { Category } from 'src/categories/entities/category.entity';
@@ -31,6 +32,7 @@ import { CityGroupModule } from 'src/city-group/city-group.module';
 import { CityGroup } from 'src/city-group/entities/city-group.entity';
 import { PointsModule } from 'src/points/points.module';
 import { PointsTransaction } from 'src/points/entities/points-transaction.entity';
+import { VolunteerRatingModule } from 'src/volunteer-rating/volunteer-rating.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ImageModule } from 'src/image/image.module';
 
@@ -81,6 +83,7 @@ import { ImageModule } from 'src/image/image.module';
             PushSubscription,
             City,
             CityGroup,
+            VolunteerRating,
             PointsTransaction,
           ],
         };
@@ -93,6 +96,7 @@ import { ImageModule } from 'src/image/image.module';
     CategoriesModule,
     SkillsModule,
     TaskModule,
+    VolunteerRatingModule,
     NotificationsModule,
     ImageModule,
     CityModule,

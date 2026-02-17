@@ -75,6 +75,13 @@ export class Volunteer {
   })
   rating?: number;
 
+  @Column({
+    name: 'rating_count',
+    type: 'int',
+    default: 0,
+  })
+  ratingCount: number;
+
   @CreateDateColumn({
     name: 'created_at',
   })
