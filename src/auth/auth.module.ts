@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthService } from './services/auth.service';
 import { TokenService } from './services/token.service';
+import { SmsService } from './services/sms.service';
 import { expiresAccessIn } from 'src/shared/constants';
 import { JwtRefreshTokenStrategy } from './strategies/jwt-refresh.strategy';
 import { VerificationCode } from './entities/verification-code.entity';
@@ -28,7 +29,13 @@ import { AdminAuthController } from './controllers/admin-auth.controller';
     }),
   ],
   controllers: [UserAuthController, AdminAuthController],
-  providers: [AuthService, TokenService, JwtStrategy, JwtRefreshTokenStrategy],
+  providers: [
+    AuthService,
+    TokenService,
+    SmsService,
+    JwtStrategy,
+    JwtRefreshTokenStrategy,
+  ],
   exports: [AuthService, TokenService],
 })
 export class AuthModule {}

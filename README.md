@@ -32,6 +32,19 @@
 $ pnpm install
 ```
 
+### SMS (019sms.co.il)
+
+Для отправки SMS при верификации по телефону задайте в `.env` (или `.env.development` / `.env.production`):
+
+| Переменная        | Описание |
+|-------------------|----------|
+| `SMS_API_019_URL` | URL API 019sms (по умолчанию `https://019sms.co.il/api`). |
+| `SMS_API_019`     | API token для заголовка `Authorization: Bearer ...`. Создаётся в личном кабинете 019sms: Settings → API Token Management → Create New Token. |
+| `SMS_USERNAME`    | Логин аккаунта 019sms (передаётся в теле запроса). |
+| `SMS_SOURCE`      | Номер отправителя (без «+», до 11 символов). |
+
+Документация API: [Send SMS](https://docs.019sms.co.il/sms/send-sms.html).
+
 ## Compile and run the project
 
 ```bash

@@ -2,7 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
-  NotFoundException,
+  BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -19,12 +20,14 @@ import { CreateAdminUserDto, LoginUserDto } from '../dto/auth-create-user.dto';
 import { VerificationCode } from '../entities/verification-code.entity';
 import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { UpdateUserDto } from '../../user/dto/update-user.dto';
+import { SmsService } from './sms.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private tokenService: TokenService,
     private userService: UserService,
+    private smsService: SmsService,
     @InjectRepository(VerificationCode)
     private verificationCodeRepository: Repository<VerificationCode>,
   ) {}
@@ -40,24 +43,29 @@ export class AuthService {
       const code = this.generateVerificationCode();
 
       if (isDev) {
-        // В режиме разработки сохраняем код и возвращаем его
         await this.saveVerificationCode(phone, code);
-
         return {
-          message: 'Код верификации для разработки (сообщение не отправлено)',
-          code: code, // Возвращаем код для разработки
+          message: 'Verification code for development (message not sent)',
+          code,
         };
       }
 
-      // Моковая реализация - просто сохраняем код в БД
-      // В будущем здесь можно добавить реальную отправку SMS
       await this.saveVerificationCode(phone, code);
+      // <#> prefix lets the phone suggest pasting the code into the input (Google SMS verification)
+      const smsText = `<#> Your verification code is: ${code}`;
+      await this.smsService.send(phone, smsText);
 
       return {
-        message: 'Код верификации отправлен (моковая реализация)',
+        message: 'Verification code sent',
       };
     } catch (error) {
-      throw new Error(`Ошибка отправки сообщения: ${error.message}`);
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ServiceUnavailableException
+      ) {
+        throw error;
+      }
+      throw new Error(`Failed to send message: ${error.message}`);
     }
   }
 
@@ -97,9 +105,8 @@ export class AuthService {
       return this.generateAuthTokens(newUser);
     }
 
-    // Пользователь найден - проверяем, что это волонтер или нуждающийся
     if (user.role !== UserRole.VOLUNTEER && user.role !== UserRole.NEEDY) {
-      throw new UnauthorizedException('Неверный тип пользователя для SMS авторизации');
+      throw new UnauthorizedException('Invalid user type for SMS authentication');
     }
 
     // Обновляем информацию о входе
@@ -125,7 +132,7 @@ export class AuthService {
     // Проверяем, что пользователь с таким email не существует
     const existingUser = await this.userService.findByEmail(email);
     if (existingUser) {
-      throw new ConflictException('Пользователь с таким email уже существует');
+      throw new ConflictException('User with this email already exists');
     }
 
     // Хешируем пароль
@@ -155,18 +162,16 @@ export class AuthService {
 
     const user = await this.userService.findUserByEmailWithPassword(email);
     if (!user) {
-      throw new UnauthorizedException('Неверные учетные данные');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     if (!user.passwordHash) {
-      throw new UnauthorizedException(
-        'Пароль не установлен для данного пользователя',
-      );
+      throw new UnauthorizedException('Password not set for this user');
     }
 
     const isPasswordValid = await compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Неверные учетные данные');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     if (ipAddress) {
@@ -193,17 +198,16 @@ export class AuthService {
       const user = await this.userService.findById(payload.userId);
 
       if (!user) {
-        throw new UnauthorizedException('Пользователь не найден');
+        throw new UnauthorizedException('User not found');
       }
 
-      // Проверяем, что refresh token совпадает с сохраненным в базе
       if (!user.refreshTokenHash) {
-        throw new UnauthorizedException('Refresh token не найден в базе');
+        throw new UnauthorizedException('Refresh token not found');
       }
 
       const isTokenValid = await compare(refreshToken, user.refreshTokenHash);
       if (!isTokenValid) {
-        throw new UnauthorizedException('Refresh token недействителен');
+        throw new UnauthorizedException('Refresh token is invalid');
       }
 
       return this.generateAuthTokens(user);
@@ -211,7 +215,7 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      throw new UnauthorizedException('Недействительный refresh token');
+      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
@@ -336,20 +340,19 @@ export class AuthService {
       });
 
       if (!verificationCode) {
-        return { success: false, message: 'Неверный код верификации' };
+        return { success: false, message: 'Invalid verification code' };
       }
 
       if (verificationCode.expiresAt < new Date()) {
-        return { success: false, message: 'Код верификации истек' };
+        return { success: false, message: 'Verification code expired' };
       }
 
-      // Помечаем код как использованный
       verificationCode.isUsed = true;
       await this.verificationCodeRepository.save(verificationCode);
 
-      return { success: true, message: 'Код верификации подтвержден' };
+      return { success: true, message: 'Verification code confirmed' };
     } catch (error) {
-      return { success: false, message: 'Ошибка проверки кода' };
+      return { success: false, message: 'Error verifying code' };
     }
   }
 
