@@ -34,7 +34,7 @@ export class Category {
     type: 'uuid',
     nullable: true,
   })
-  imageId?: string;
+  imageId?: string | null;
 
   @ManyToOne(() => Image, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'image_id' })

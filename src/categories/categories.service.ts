@@ -69,6 +69,16 @@ export class CategoriesService {
 
     Object.assign(category, updateCategoryDto);
 
+    if (Object.prototype.hasOwnProperty.call(updateCategoryDto, 'imageId')) {
+      const newImageId = updateCategoryDto.imageId ?? null;
+      category.imageId = newImageId;
+      if (newImageId) {
+        category.image = await this.imageService.findOne(newImageId);
+      } else {
+        category.image = undefined;
+      }
+    }
+
     return await this.categoryRepository.save(category);
   }
 
