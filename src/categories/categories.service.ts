@@ -9,6 +9,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Category } from './entities/category.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
+import { ImageService } from 'src/image/image.service';
 
 @Injectable()
 export class CategoriesService {
@@ -17,6 +18,7 @@ export class CategoriesService {
     private readonly categoryRepository: Repository<Category>,
     @InjectRepository(Skill)
     private readonly skillRepository: Repository<Skill>,
+    private readonly imageService: ImageService,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
@@ -25,12 +27,14 @@ export class CategoriesService {
   }
 
   async findAll(): Promise<Category[]> {
-    return await this.categoryRepository.find({
+    const categories = await this.categoryRepository.find({
       relations: ['skills', 'image'],
       order: {
         createdAt: 'ASC',
       },
     });
+    await this.refreshCategoryImageUrls(categories);
+    return categories;
   }
 
   async findOne(id: string): Promise<Category> {
@@ -43,7 +47,18 @@ export class CategoriesService {
       throw new NotFoundException(`Category with ID ${id} not found`);
     }
 
+    if (category.image) {
+      await this.imageService.refreshImageUrl(category.image);
+    }
     return category;
+  }
+
+  private async refreshCategoryImageUrls(categories: Category[]): Promise<void> {
+    await Promise.all(
+      categories
+        .filter((c) => c.image)
+        .map((c) => this.imageService.refreshImageUrl(c.image!)),
+    );
   }
 
   async update(

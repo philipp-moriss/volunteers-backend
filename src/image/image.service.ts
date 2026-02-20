@@ -79,4 +79,10 @@ export class ImageService {
     const image = await this.findOne(id);
     return await this.s3Service.getFileUrl(image.key, expiresIn);
   }
+
+  /** Обновляет image.url актуальным presigned URL (7 дней). Используется при отдаче категорий/задач. */
+  async refreshImageUrl(image: Image): Promise<void> {
+    const expiresIn = 3600 * 24 * 7; // 7 дней
+    image.url = await this.s3Service.getFileUrl(image.key, expiresIn);
+  }
 }
