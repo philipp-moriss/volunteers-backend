@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserStatus, UserRole } from 'src/shared/user';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
@@ -311,8 +311,9 @@ export class UserService {
   }
 
 
-  async findAll() {
+  async findAll(status?: UserStatus) {
     return this.userRepository.find({
+      where: status !== undefined ? { status } : undefined,
       select: [
         'id',
         'phone',
@@ -327,6 +328,8 @@ export class UserService {
         'updatedAt',
         'lastLoginAt',
         'onboardingCompleted',
+        'approvedById',
+        'approvedAt',
       ],
     });
   }
@@ -398,13 +401,23 @@ export class UserService {
     });
   }
 
-  async update(id: string, updateUserDto: Partial<UpdateUserDto>) {
+  async update(id: string, updateUserDto: Partial<UpdateUserDto>, adminUserId?: string) {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException(`User with id ${id} not found`);
     }
 
     const { role, skills, programId, creatorId, cityId, address, ...userFields } = updateUserDto;
+
+    // Audit: when setting status to APPROVED for volunteer, record who approved and when
+    if (
+      userFields.status === UserStatus.APPROVED &&
+      user.role === UserRole.VOLUNTEER &&
+      adminUserId
+    ) {
+      (userFields as Partial<User>).approvedById = adminUserId;
+      (userFields as Partial<User>).approvedAt = new Date();
+    }
 
     // Проверяем уникальность email, если указан
     if (userFields.email && userFields.email !== user.email) {
@@ -619,6 +632,8 @@ export class UserService {
         'updatedAt',
         'lastLoginAt',
         'onboardingCompleted',
+        'approvedById',
+        'approvedAt',
       ],
     });
 
