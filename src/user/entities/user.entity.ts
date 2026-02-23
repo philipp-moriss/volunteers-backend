@@ -5,6 +5,8 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 
 @Entity({ name: 'users' })
@@ -111,4 +113,22 @@ export class User {
     name: 'updated_at',
   })
   updatedAt: Date;
+
+  @Column({
+    name: 'approved_by_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  approvedById?: string | null;
+
+  @Column({
+    name: 'approved_at',
+    type: 'timestamp',
+    nullable: true,
+  })
+  approvedAt?: Date | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'approved_by_id' })
+  approvedBy?: User | null;
 }
