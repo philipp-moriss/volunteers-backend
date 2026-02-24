@@ -36,6 +36,12 @@ import { CityGroupService } from 'src/city-group/city-group.service';
 import { PointsService } from 'src/points/points.service';
 import { PointsTransactionType } from 'src/points/entities/points-transaction.entity';
 import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
+import { TaskResponse } from './entities/task-response.entity';
+import { TaskResponseStatus } from './types/task-response-status.enum';
+
+export type VolunteerTaskStatus = 'assigned' | 'pending_response';
+
+export type TaskWithVolunteerStatus = Task & { volunteerTaskStatus: VolunteerTaskStatus };
 
 @Injectable()
 export class TaskService {
@@ -58,6 +64,8 @@ export class TaskService {
     private readonly categoryRepository: Repository<Category>,
     @InjectRepository(City)
     private readonly cityRepository: Repository<City>,
+    @InjectRepository(TaskResponse)
+    private readonly taskResponseRepository: Repository<TaskResponse>,
     private readonly agentService: AgentService,
     private readonly categoriesService: CategoriesService,
     private readonly skillsService: SkillsService,
@@ -802,13 +810,16 @@ export class TaskService {
     });
   }
 
-  async getAssignedTasks(userMetadata: UserMetadata): Promise<Task[]> {
+  async getAssignedTasks(userMetadata: UserMetadata): Promise<TaskWithVolunteerStatus[]> {
     if (userMetadata.role !== UserRole.VOLUNTEER) {
       throw new ForbiddenException('Only volunteers can view assigned tasks');
     }
 
-    const tasks = await this.taskRepository.find({
-      where: { assignedVolunteerId: userMetadata.userId },
+    const userId = userMetadata.userId;
+
+    // 1) Задачи, на которые волонтёр назначен
+    const assignedTasks = await this.taskRepository.find({
+      where: { assignedVolunteerId: userId },
       relations: [
         'program',
         'needy',
@@ -834,13 +845,61 @@ export class TaskService {
       order: { createdAt: 'DESC' },
     });
 
-    // Дополнительная защита: очищаем чувствительные данные
-    return tasks.map(task => {
+    const assignedIds = new Set(assignedTasks.map((t) => t.id));
+    const result: TaskWithVolunteerStatus[] = assignedTasks.map((task) => {
       if (task.needy) {
-        task.needy = sanitizeUser(task.needy) as any;
+        (task as Task).needy = sanitizeUser(task.needy) as any;
       }
-      return task;
+      return { ...task, volunteerTaskStatus: 'assigned' as const };
     });
+
+    // 2) Задачи, на которые волонтёр откликнулся и ждёт решения (PENDING) — показываем во «Мои задачи» предварительно
+    const pendingResponses = await this.taskResponseRepository.find({
+      where: { volunteerId: userId, status: TaskResponseStatus.PENDING },
+      select: ['taskId'],
+    });
+    const pendingTaskIds = pendingResponses
+      .map((r) => r.taskId)
+      .filter((id) => !assignedIds.has(id));
+
+    if (pendingTaskIds.length > 0) {
+      const pendingTasks = await this.taskRepository.find({
+        where: { id: In(pendingTaskIds) },
+        relations: [
+          'program',
+          'needy',
+          'category',
+          'skills',
+        ],
+        select: {
+          needy: {
+            id: true,
+            phone: true,
+            email: true,
+            role: true,
+            status: true,
+            firstName: true,
+            lastName: true,
+            photo: true,
+            about: true,
+            createdAt: true,
+            updatedAt: true,
+            lastLoginAt: true,
+          },
+        },
+        order: { createdAt: 'DESC' },
+      });
+
+      for (const task of pendingTasks) {
+        if (task.needy) {
+          (task as Task).needy = sanitizeUser(task.needy) as any;
+        }
+        result.push({ ...task, volunteerTaskStatus: 'pending_response' as const });
+      }
+    }
+
+    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return result;
   }
 
   async getTasksForVolunteer(
