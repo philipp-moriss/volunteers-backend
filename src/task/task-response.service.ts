@@ -131,6 +131,48 @@ export class TaskResponseService {
         .andWhere('volunteerId != :volunteerId', { volunteerId: userMetadata.userId })
         .andWhere('status = :status', { status: TaskResponseStatus.PENDING })
         .execute();
+
+      // Пуш назначенному и «Задачу взял другой» остальным (не при создании задачи — только при назначении)
+      const assignedUser = await this.userRepository.findOne({
+        where: { id: userMetadata.userId },
+        select: ['language'],
+      });
+      const assignedTranslations = getNotificationTranslations(assignedUser?.language);
+      this.pushNotificationService
+        .sendToUser(userMetadata.userId, {
+          title: assignedTranslations.responseApproved.title,
+          body: assignedTranslations.responseApproved.body(task.title),
+          data: { type: 'response_approved', taskId: task.id, responseId: savedResponse.id },
+          tag: `task-${task.id}`,
+        })
+        .catch((error) => {
+          console.error('Failed to send push notification for first-response assignment:', error);
+        });
+
+      const taskWithSkills = await this.taskRepository.findOne({
+        where: { id: task.id },
+        relations: ['skills'],
+      });
+      const skillIds = taskWithSkills?.skills?.map((s) => s.id) ?? [];
+      const taskTakenTranslations = getNotificationTranslations(assignedUser?.language);
+      this.pushNotificationService
+        .sendTaskTakenToOtherVolunteers(
+          task.programId,
+          userMetadata.userId,
+          {
+            title: taskTakenTranslations.taskTakenByOther.title,
+            body: taskTakenTranslations.taskTakenByOther.body(task.title),
+            data: { type: 'task_taken_by_other', taskId: task.id },
+            tag: `task-${task.id}`,
+          },
+          {
+            skillIds: skillIds.length > 0 ? skillIds : undefined,
+            cityId: task.cityId ?? undefined,
+          },
+        )
+        .catch((error) => {
+          console.error('Failed to send push "task taken by other" (firstResponseMode):', error);
+        });
     }
 
     // Отправляем уведомление нуждающемуся об отклике
@@ -311,6 +353,36 @@ export class TaskResponseService {
       })
       .catch((error) => {
         console.error('Failed to send push notification for approved response:', error);
+      });
+
+    // Пуш «Задачу взял другой волонтёр» остальным (не при создании задачи — только при назначении)
+    const taskWithSkills = await this.taskRepository.findOne({
+      where: { id: task.id },
+      relations: ['skills'],
+    });
+    const skillIds = taskWithSkills?.skills?.map((s) => s.id) ?? [];
+    const needyUser = await this.userRepository.findOne({
+      where: { id: task.needyId },
+      select: ['language'],
+    });
+    const taskTakenTranslations = getNotificationTranslations(needyUser?.language);
+    this.pushNotificationService
+      .sendTaskTakenToOtherVolunteers(
+        task.programId,
+        approveVolunteerDto.volunteerId,
+        {
+          title: taskTakenTranslations.taskTakenByOther.title,
+          body: taskTakenTranslations.taskTakenByOther.body(task.title),
+          data: { type: 'task_taken_by_other', taskId: task.id },
+          tag: `task-${task.id}`,
+        },
+        {
+          skillIds: skillIds.length > 0 ? skillIds : undefined,
+          cityId: task.cityId ?? undefined,
+        },
+      )
+      .catch((error) => {
+        console.error('Failed to send push notification "task taken by other":', error);
       });
 
     return { taskResponse, task };

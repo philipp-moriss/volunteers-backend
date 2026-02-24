@@ -30,7 +30,7 @@ export class VolunteerRatingController {
   @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Get all ratings for a volunteer' })
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.NEEDY, UserRole.ADMIN, UserRole.VOLUNTEER)
+  @Roles(UserRole.ADMIN)
   @Get(':volunteerId/ratings')
   getRatings(@Param('volunteerId', ParseUUIDPipe) volunteerId: string): Promise<GetVolunteerRatingDto[]> {
     return this.volunteerRatingService.getRatings(volunteerId);

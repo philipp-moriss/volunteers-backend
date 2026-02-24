@@ -31,23 +31,26 @@ export class PushNotificationService {
   ) {}
 
   /**
-   * Сохранение подписки пользователя
+   * Сохранение подписки пользователя.
+   * Оставляем одну подписку на пользователя (последнюю), чтобы не было дублей пушей.
    */
   async saveSubscription(
     userId: string,
     endpoint: string,
     keys: { p256dh: string; auth: string },
   ): Promise<PushSubscription> {
-    // Проверяем существующую подписку с таким endpoint
-    const existing = await this.subscriptionRepository.findOne({
+    const existingSameEndpoint = await this.subscriptionRepository.findOne({
       where: { endpoint, userId },
     });
 
-    if (existing) {
-      existing.p256dh = keys.p256dh;
-      existing.auth = keys.auth;
-      return this.subscriptionRepository.save(existing);
+    if (existingSameEndpoint) {
+      existingSameEndpoint.p256dh = keys.p256dh;
+      existingSameEndpoint.auth = keys.auth;
+      return this.subscriptionRepository.save(existingSameEndpoint);
     }
+
+    // Удаляем остальные подписки этого пользователя — одна подписка на пользователя, без лишних
+    await this.subscriptionRepository.delete({ userId });
 
     const subscription = this.subscriptionRepository.create({
       userId,
@@ -221,6 +224,57 @@ export class PushNotificationService {
 
     const userIds = volunteers.map((v) => v.userId);
     await this.sendToUsers(userIds, payload);
+  }
+
+  /**
+   * Отправка уведомления «Задачу взял другой волонтёр» всем волонтёрам той же аудитории, что и при создании задачи (программа ± навыки ± город), кроме назначенного.
+   * Вызывается только при назначении (approve/assign/firstResponseMode), не при создании задачи.
+   */
+  async sendTaskTakenToOtherVolunteers(
+    programId: string,
+    assignedVolunteerId: string,
+    payload: NotificationPayload,
+    options?: { skillIds?: string[]; cityId?: string },
+  ): Promise<void> {
+    let userIds: string[];
+
+    if (options?.skillIds && options.skillIds.length > 0) {
+      let queryBuilder = this.volunteerRepository
+        .createQueryBuilder('volunteer')
+        .innerJoin('volunteer.skills', 'skill')
+        .innerJoin('volunteer_programs', 'vp', 'vp.volunteer_id = volunteer.id')
+        .where('vp.program_id = :programId', { programId })
+        .andWhere('skill.id IN (:...skillIds)', { skillIds: options.skillIds });
+      if (options.cityId) {
+        queryBuilder = queryBuilder.andWhere('volunteer.cityId = :cityId', {
+          cityId: options.cityId,
+        });
+      }
+      const volunteers = await queryBuilder.getMany();
+      userIds = volunteers.map((v) => v.userId);
+    } else {
+      let queryBuilder = this.volunteerRepository
+        .createQueryBuilder('volunteer')
+        .innerJoin('volunteer_programs', 'vp', 'vp.volunteer_id = volunteer.id')
+        .where('vp.program_id = :programId', { programId });
+      if (options?.cityId) {
+        queryBuilder = queryBuilder.andWhere('volunteer.cityId = :cityId', {
+          cityId: options.cityId,
+        });
+      }
+      const volunteers = await queryBuilder.getMany();
+      userIds = volunteers.map((v) => v.userId);
+    }
+
+    const otherUserIds = userIds.filter((uid) => uid !== assignedVolunteerId);
+    if (otherUserIds.length === 0) {
+      this.logger.debug(
+        `No other volunteers to notify for task taken (program ${programId}, assigned ${assignedVolunteerId})`,
+      );
+      return;
+    }
+
+    await this.sendToUsers(otherUserIds, payload);
   }
 
   /**

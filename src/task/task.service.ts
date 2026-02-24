@@ -29,6 +29,7 @@ import { SkillsService } from 'src/skills/skills.service';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
 import { GenerateTaskAiDto } from './dto/generate-task-ai.dto';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
+import { getNotificationTranslations } from 'src/shared/utils/notification-translations';
 import { City } from 'src/city/entities/city.entity';
 import { CityService } from 'src/city/city.service';
 import { CityGroupService } from 'src/city-group/city-group.service';
@@ -192,54 +193,39 @@ export class TaskService {
 
     const savedTask = await this.taskRepository.save(task);
 
-    // ВСЕГДА отправляем уведомления всем менторам (волонтерам) программы
+    // Одна рассылка на задачу — без дублей. Если указаны навыки — только волонтёрам с навыками; иначе — всем волонтёрам программы.
     if (programId) {
-      this.pushNotificationService
-        .sendToAllProgramVolunteers(
-          programId, // Используем programId (может быть дефолтным)
-          {
-            title: 'New Task Available',
-            body: savedTask.title,
-            data: {
-              type: 'new_task',
-              taskId: savedTask.id,
-            },
-            tag: `task-${savedTask.id}`,
-          },
-          taskCityId, // Фильтр по городу
-        )
-        .catch((error) => {
-          console.error(
-            `Failed to send push notification to all mentors for task ${savedTask.id} in program ${programId}:`,
-            error,
-          );
-        });
+      const payload = {
+        title: 'New Task Available',
+        body: savedTask.title,
+        data: { type: 'new_task', taskId: savedTask.id },
+        tag: `task-${savedTask.id}`,
+      };
+      if (createTaskDto.skillIds && createTaskDto.skillIds.length > 0) {
+        this.pushNotificationService
+          .sendToVolunteersBySkills(
+            createTaskDto.skillIds,
+            programId,
+            payload,
+            taskCityId,
+          )
+          .catch((error) => {
+            console.error('Failed to send push notification for new task:', error);
+          });
+      } else {
+        this.pushNotificationService
+          .sendToAllProgramVolunteers(programId, payload, taskCityId)
+          .catch((error) => {
+            console.error(
+              `Failed to send push notification to mentors for task ${savedTask.id}:`,
+              error,
+            );
+          });
+      }
     } else {
       console.warn(
         `Task ${savedTask.id} created without programId - skipping mentor notifications`,
       );
-    }
-
-    // Дополнительно: если указаны навыки, отправляем приоритетное уведомление волонтерам с навыками
-    if (createTaskDto.skillIds && createTaskDto.skillIds.length > 0) {
-      this.pushNotificationService
-        .sendToVolunteersBySkills(
-          createTaskDto.skillIds,
-          programId, // Используем programId (может быть дефолтным)
-          {
-            title: 'New Task Available',
-            body: savedTask.title,
-            data: {
-              type: 'new_task',
-              taskId: savedTask.id,
-            },
-            tag: `task-${savedTask.id}`,
-          },
-          taskCityId, // Передаем cityId для фильтрации уведомлений по городу
-        )
-        .catch((error) => {
-          console.error('Failed to send push notification for new task:', error);
-        });
     }
 
     return savedTask;
@@ -536,7 +522,51 @@ export class TaskService {
     task.status = TaskStatus.IN_PROGRESS;
     task.approveBy = []; // Очищаем массив подтверждений при назначении нового волонтера
 
-    return await this.taskRepository.save(task);
+    const savedTask = await this.taskRepository.save(task);
+
+    // Пуш назначенному и «Задачу взял другой» остальным (не при создании задачи — только при назначении)
+    const assignedUser = await this.userRepository.findOne({
+      where: { id: assignVolunteerDto.volunteerId },
+      select: ['language'],
+    });
+    const translations = getNotificationTranslations(assignedUser?.language);
+    this.pushNotificationService
+      .sendToUser(assignVolunteerDto.volunteerId, {
+        title: translations.responseApproved.title,
+        body: translations.responseApproved.body(savedTask.title),
+        data: { type: 'response_approved', taskId: savedTask.id },
+        tag: `task-${savedTask.id}`,
+      })
+      .catch((error) => {
+        this.logger.error('Failed to send push notification for assignment:', error);
+      });
+
+    const taskWithSkills = await this.taskRepository.findOne({
+      where: { id: savedTask.id },
+      relations: ['skills'],
+    });
+    const skillIds = taskWithSkills?.skills?.map((s) => s.id) ?? [];
+    const taskTakenTranslations = getNotificationTranslations(assignedUser?.language);
+    this.pushNotificationService
+      .sendTaskTakenToOtherVolunteers(
+        savedTask.programId,
+        assignVolunteerDto.volunteerId,
+        {
+          title: taskTakenTranslations.taskTakenByOther.title,
+          body: taskTakenTranslations.taskTakenByOther.body(savedTask.title),
+          data: { type: 'task_taken_by_other', taskId: savedTask.id },
+          tag: `task-${savedTask.id}`,
+        },
+        {
+          skillIds: skillIds.length > 0 ? skillIds : undefined,
+          cityId: savedTask.cityId ?? undefined,
+        },
+      )
+      .catch((error) => {
+        this.logger.error('Failed to send push "task taken by other":', error);
+      });
+
+    return savedTask;
   }
 
   async cancelAssignment(id: string, userMetadata: UserMetadata): Promise<Task> {

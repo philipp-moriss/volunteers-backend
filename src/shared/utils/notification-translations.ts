@@ -15,6 +15,10 @@ export const notificationTranslations = {
       title: 'Response Rejected',
       body: (taskTitle: string) => `Your response to task "${taskTitle}" has been rejected`,
     },
+    taskTakenByOther: {
+      title: 'Task Taken',
+      body: (taskTitle: string) => `Sorry, but another volunteer took the task "${taskTitle}"`,
+    },
   },
   he: {
     taskResponse: {
@@ -29,6 +33,10 @@ export const notificationTranslations = {
       title: 'תגובה נדחתה',
       body: (taskTitle: string) => `התגובה שלך למשימה "${taskTitle}" נדחתה`,
     },
+    taskTakenByOther: {
+      title: 'המשימה נלקחה',
+      body: (taskTitle: string) => `מצטערים, מתנדב אחר לקח את המשימה "${taskTitle}"`,
+    },
   },
   ru: {
     taskResponse: {
@@ -42,6 +50,10 @@ export const notificationTranslations = {
     responseRejected: {
       title: 'Отклик отклонен',
       body: (taskTitle: string) => `Ваш отклик на задачу "${taskTitle}" был отклонен`,
+    },
+    taskTakenByOther: {
+      title: 'Задачу взял другой волонтёр',
+      body: (taskTitle: string) => `Извините, но задачу "${taskTitle}" взял другой волонтёр`,
     },
   },
 };
