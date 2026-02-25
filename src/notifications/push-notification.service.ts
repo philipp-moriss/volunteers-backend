@@ -6,6 +6,7 @@ import { PushSubscription } from './entities/push-subscription.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
+import type { SupportedLanguage } from 'src/shared/utils/notification-translations';
 
 export interface NotificationPayload {
   title: string;
@@ -153,13 +154,45 @@ export class PushNotificationService {
   }
 
   /**
-   * Отправка уведомления волонтерам с подходящими навыками
+   * Отправка уведомлений с персональным языком: загружает язык каждого пользователя,
+   * группирует по языку, для каждой группы формирует payload через getPayload и отправляет.
+   */
+  async sendToUsersWithLanguage(
+    userIds: string[],
+    getPayload: (lang: SupportedLanguage) => NotificationPayload,
+  ): Promise<void> {
+    if (userIds.length === 0) return;
+
+    const users = await this.userRepository.find({
+      where: { id: In(userIds) },
+      select: ['id', 'language'],
+    });
+
+    const langGroups = new Map<string, string[]>();
+    for (const user of users) {
+      const lang = (user.language || 'he') as SupportedLanguage;
+      const validLang = ['he', 'ru', 'en'].includes(lang) ? lang : 'he';
+      const list = langGroups.get(validLang) ?? [];
+      list.push(user.id);
+      langGroups.set(validLang, list);
+    }
+
+    for (const [lang, ids] of langGroups) {
+      const payload = getPayload(lang as SupportedLanguage);
+      await this.sendToUsers(ids, payload);
+    }
+  }
+
+  /**
+   * Отправка уведомления волонтерам с подходящими навыками.
+   * При передаче getPayloadByLanguage каждый получатель получает push на своём языке.
    */
   async sendToVolunteersBySkills(
     skillIds: string[],
     programId: string,
     payload: NotificationPayload,
     cityId?: string,
+    getPayloadByLanguage?: (lang: SupportedLanguage) => NotificationPayload,
   ): Promise<void> {
     if (skillIds.length === 0) return;
 
@@ -186,17 +219,22 @@ export class PushNotificationService {
     }
 
     const userIds = volunteers.map((v) => v.userId);
-    await this.sendToUsers(userIds, payload);
+    if (getPayloadByLanguage) {
+      await this.sendToUsersWithLanguage(userIds, getPayloadByLanguage);
+    } else {
+      await this.sendToUsers(userIds, payload);
+    }
   }
 
   /**
-   * Отправка уведомления всем волонтерам (менторам) программы
-   * Отправляет уведомления всем волонтерам программы независимо от навыков
+   * Отправка уведомления всем волонтерам (менторам) программы.
+   * При передаче getPayloadByLanguage каждый получатель получает push на своём языке.
    */
   async sendToAllProgramVolunteers(
     programId: string,
     payload: NotificationPayload,
     cityId?: string,
+    getPayloadByLanguage?: (lang: SupportedLanguage) => NotificationPayload,
   ): Promise<void> {
     // Находим всех волонтеров программы
     let queryBuilder = this.volunteerRepository
@@ -223,18 +261,27 @@ export class PushNotificationService {
     );
 
     const userIds = volunteers.map((v) => v.userId);
-    await this.sendToUsers(userIds, payload);
+    if (getPayloadByLanguage) {
+      await this.sendToUsersWithLanguage(userIds, getPayloadByLanguage);
+    } else {
+      await this.sendToUsers(userIds, payload);
+    }
   }
 
   /**
    * Отправка уведомления «Задачу взял другой волонтёр» всем волонтёрам той же аудитории, что и при создании задачи (программа ± навыки ± город), кроме назначенного.
    * Вызывается только при назначении (approve/assign/firstResponseMode), не при создании задачи.
+   * При передаче getPayloadByLanguage каждый получатель получает push на своём языке.
    */
   async sendTaskTakenToOtherVolunteers(
     programId: string,
     assignedVolunteerId: string,
     payload: NotificationPayload,
-    options?: { skillIds?: string[]; cityId?: string },
+    options?: {
+      skillIds?: string[];
+      cityId?: string;
+      getPayloadByLanguage?: (lang: SupportedLanguage) => NotificationPayload;
+    },
   ): Promise<void> {
     let userIds: string[];
 
@@ -274,7 +321,11 @@ export class PushNotificationService {
       return;
     }
 
-    await this.sendToUsers(otherUserIds, payload);
+    if (options?.getPayloadByLanguage) {
+      await this.sendToUsersWithLanguage(otherUserIds, options.getPayloadByLanguage);
+    } else {
+      await this.sendToUsers(otherUserIds, payload);
+    }
   }
 
   /**

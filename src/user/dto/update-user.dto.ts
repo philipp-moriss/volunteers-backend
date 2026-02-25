@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/swagger';
 import { CreateUserDto } from './create-user.dto';
-import { IsOptional, IsString, IsEnum, IsEmail, IsUUID, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsEmail, IsUUID, IsBoolean, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserStatus, UserRole } from 'src/shared/user';
 import { UUID } from 'crypto';
@@ -75,4 +75,9 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsOptional()
   @IsBoolean()
   onboardingCompleted?: boolean;
+
+  @ApiProperty({ required: false, description: 'Preferred language (he, ru, en)' })
+  @IsOptional()
+  @IsIn(['he', 'ru', 'en'])
+  language?: string;
 }

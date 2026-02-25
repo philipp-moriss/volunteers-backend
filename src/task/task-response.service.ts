@@ -16,7 +16,10 @@ import { UserRole } from 'src/shared/user/type';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
-import { getNotificationTranslations } from 'src/shared/utils/notification-translations';
+import {
+  getNotificationTranslations,
+  type SupportedLanguage,
+} from 'src/shared/utils/notification-translations';
 import { User } from 'src/user/entities/user.entity';
 
 @Injectable()
@@ -154,20 +157,26 @@ export class TaskResponseService {
         relations: ['skills'],
       });
       const skillIds = taskWithSkills?.skills?.map((s) => s.id) ?? [];
-      const taskTakenTranslations = getNotificationTranslations(assignedUser?.language);
+      const taskTitle = task.title;
+      const taskId = task.id;
+      const getPayloadByLanguage = (lang: SupportedLanguage) => {
+        const t = getNotificationTranslations(lang);
+        return {
+          title: t.taskTakenByOther.title,
+          body: t.taskTakenByOther.body(taskTitle),
+          data: { type: 'task_taken_by_other' as const, taskId },
+          tag: `task-${taskId}`,
+        };
+      };
       this.pushNotificationService
         .sendTaskTakenToOtherVolunteers(
           task.programId,
           userMetadata.userId,
-          {
-            title: taskTakenTranslations.taskTakenByOther.title,
-            body: taskTakenTranslations.taskTakenByOther.body(task.title),
-            data: { type: 'task_taken_by_other', taskId: task.id },
-            tag: `task-${task.id}`,
-          },
+          getPayloadByLanguage('he'),
           {
             skillIds: skillIds.length > 0 ? skillIds : undefined,
             cityId: task.cityId ?? undefined,
+            getPayloadByLanguage,
           },
         )
         .catch((error) => {
@@ -355,30 +364,32 @@ export class TaskResponseService {
         console.error('Failed to send push notification for approved response:', error);
       });
 
-    // Пуш «Задачу взял другой волонтёр» остальным (не при создании задачи — только при назначении)
+    // Пуш «Задачу взял другой волонтёр» остальным — каждый получает на своём языке
     const taskWithSkills = await this.taskRepository.findOne({
       where: { id: task.id },
       relations: ['skills'],
     });
     const skillIds = taskWithSkills?.skills?.map((s) => s.id) ?? [];
-    const needyUser = await this.userRepository.findOne({
-      where: { id: task.needyId },
-      select: ['language'],
-    });
-    const taskTakenTranslations = getNotificationTranslations(needyUser?.language);
+    const taskTitle = task.title;
+    const taskId = task.id;
+    const getPayloadByLanguage = (lang: SupportedLanguage) => {
+      const t = getNotificationTranslations(lang);
+      return {
+        title: t.taskTakenByOther.title,
+        body: t.taskTakenByOther.body(taskTitle),
+        data: { type: 'task_taken_by_other' as const, taskId },
+        tag: `task-${taskId}`,
+      };
+    };
     this.pushNotificationService
       .sendTaskTakenToOtherVolunteers(
         task.programId,
         approveVolunteerDto.volunteerId,
-        {
-          title: taskTakenTranslations.taskTakenByOther.title,
-          body: taskTakenTranslations.taskTakenByOther.body(task.title),
-          data: { type: 'task_taken_by_other', taskId: task.id },
-          tag: `task-${task.id}`,
-        },
+        getPayloadByLanguage('he'),
         {
           skillIds: skillIds.length > 0 ? skillIds : undefined,
           cityId: task.cityId ?? undefined,
+          getPayloadByLanguage,
         },
       )
       .catch((error) => {
