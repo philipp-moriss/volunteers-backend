@@ -124,6 +124,18 @@ export class TaskController {
     return this.taskService.getTasksForVolunteer(user, status);
   }
 
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get a task by id with volunteer-specific info (hasMyResponse)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.VOLUNTEER)
+  @Get(':id/volunteer')
+  findOneForVolunteer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUserMetadata() user: UserMetadata,
+  ) {
+    return this.taskService.findOneForVolunteer(id, user);
+  }
+
   @ApiOperation({ summary: 'Get a task by id' })
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {

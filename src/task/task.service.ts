@@ -12,8 +12,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ApproveTaskDto } from './dto/approve-task.dto';
 import { AssignVolunteerDto } from './dto/assign-volunteer.dto';
-import { TaskStatus } from './types/task-status.enum';
-import { TaskApproveRole } from './types/task-approve-role.enum';
+import { TaskStatus, TaskApproveRole, TaskWithMyResponse } from './types';
 import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { UserRole } from 'src/shared/user/type';
 import { User } from 'src/user/entities/user.entity';
@@ -24,6 +23,7 @@ import { Skill } from 'src/skills/entities/skill.entity';
 import { Category } from 'src/categories/entities/category.entity';
 import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
 import { AgentService } from 'src/agent/agent.service';
+import { TaskResponse } from './entities/task-response.entity';
 import { CategoriesService } from 'src/categories/categories.service';
 import { SkillsService } from 'src/skills/skills.service';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
@@ -57,6 +57,8 @@ export class TaskService {
     private readonly categoryRepository: Repository<Category>,
     @InjectRepository(City)
     private readonly cityRepository: Repository<City>,
+    @InjectRepository(TaskResponse)
+    private readonly taskResponseRepository: Repository<TaskResponse>,
     private readonly agentService: AgentService,
     private readonly categoriesService: CategoriesService,
     private readonly skillsService: SkillsService,
@@ -816,7 +818,7 @@ export class TaskService {
   async getTasksForVolunteer(
     userMetadata: UserMetadata,
     status?: TaskStatus,
-  ): Promise<Task[]> {
+  ): Promise<TaskWithMyResponse[]> {
     if (userMetadata.role !== UserRole.VOLUNTEER) {
       throw new ForbiddenException('Only volunteers can view suitable tasks');
     }
@@ -833,12 +835,33 @@ export class TaskService {
     const skillIds = volunteer.skills?.map((skill) => skill.id) ?? [];
     const cityIds = await this.resolveCityIdsForVolunteer(volunteer.cityId ?? undefined);
 
-    return this.findAll(undefined, {
+    const tasks = await this.findAll(undefined, {
       status,
       categoryId: undefined,
       skillIds: skillIds.length > 0 ? skillIds : undefined,
       cityIds,
     });
+
+    if (tasks.length === 0) {
+      return [];
+    }
+
+    const taskIds = tasks.map((task) => task.id);
+
+    const myResponses = await this.taskResponseRepository.find({
+      where: {
+        volunteerId: userMetadata.userId as any,
+        taskId: In(taskIds as any),
+      },
+      select: ['taskId'],
+    });
+
+    const tasksWithMyResponse = new Set(myResponses.map((response) => response.taskId));
+
+    return tasks.map((task) => ({
+      ...task,
+      hasMyResponse: tasksWithMyResponse.has(task.id),
+    }));
   }
 
   /**
@@ -849,6 +872,30 @@ export class TaskService {
       return [];
     }
     return this.cityGroupService.getCityIdsForCity(volunteerCityId);
+  }
+
+  async findOneForVolunteer(
+    id: string,
+    userMetadata: UserMetadata,
+  ): Promise<TaskWithMyResponse> {
+    if (userMetadata.role !== UserRole.VOLUNTEER) {
+      throw new ForbiddenException('Only volunteers can view volunteer-specific task details');
+    }
+
+    const task = await this.findOne(id);
+
+    const myResponse = await this.taskResponseRepository.findOne({
+      where: {
+        taskId: id as any,
+        volunteerId: userMetadata.userId as any,
+      },
+      select: ['id'],
+    });
+
+    return {
+      ...task,
+      hasMyResponse: !!myResponse,
+    };
   }
 
   async createFromAi(
