@@ -29,12 +29,22 @@ import { SkillsService } from 'src/skills/skills.service';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
 import { GenerateTaskAiDto } from './dto/generate-task-ai.dto';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
+import {
+  getNotificationTranslations,
+  type SupportedLanguage,
+} from 'src/shared/utils/notification-translations';
 import { City } from 'src/city/entities/city.entity';
 import { CityService } from 'src/city/city.service';
 import { CityGroupService } from 'src/city-group/city-group.service';
 import { PointsService } from 'src/points/points.service';
 import { PointsTransactionType } from 'src/points/entities/points-transaction.entity';
 import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
+import { TaskResponse } from './entities/task-response.entity';
+import { TaskResponseStatus } from './types/task-response-status.enum';
+
+export type VolunteerTaskStatus = 'assigned' | 'pending_response';
+
+export type TaskWithVolunteerStatus = Task & { volunteerTaskStatus: VolunteerTaskStatus };
 
 @Injectable()
 export class TaskService {
@@ -194,54 +204,49 @@ export class TaskService {
 
     const savedTask = await this.taskRepository.save(task);
 
-    // ВСЕГДА отправляем уведомления всем менторам (волонтерам) программы
+    // Одна рассылка на задачу — без дублей. Каждый волонтёр получает push на своём языке.
     if (programId) {
-      this.pushNotificationService
-        .sendToAllProgramVolunteers(
-          programId, // Используем programId (может быть дефолтным)
-          {
-            title: 'New Task Available',
-            body: savedTask.title,
-            data: {
-              type: 'new_task',
-              taskId: savedTask.id,
-            },
-            tag: `task-${savedTask.id}`,
-          },
-          taskCityId, // Фильтр по городу
-        )
-        .catch((error) => {
-          console.error(
-            `Failed to send push notification to all mentors for task ${savedTask.id} in program ${programId}:`,
-            error,
-          );
-        });
+      const taskId = savedTask.id;
+      const taskTitle = savedTask.title;
+      const basePayload = {
+        data: { type: 'new_task', taskId },
+        tag: `task-${taskId}`,
+      };
+      const getPayloadByLanguage = (lang: SupportedLanguage) => {
+        const t = getNotificationTranslations(lang);
+        return {
+          ...basePayload,
+          title: t.newTask.title,
+          body: t.newTask.body(taskTitle),
+        };
+      };
+      const fallbackPayload = getPayloadByLanguage('he');
+      if (createTaskDto.skillIds && createTaskDto.skillIds.length > 0) {
+        this.pushNotificationService
+          .sendToVolunteersBySkills(
+            createTaskDto.skillIds,
+            programId,
+            fallbackPayload,
+            taskCityId,
+            getPayloadByLanguage,
+          )
+          .catch((error) => {
+            console.error('Failed to send push notification for new task:', error);
+          });
+      } else {
+        this.pushNotificationService
+          .sendToAllProgramVolunteers(programId, fallbackPayload, taskCityId, getPayloadByLanguage)
+          .catch((error) => {
+            console.error(
+              `Failed to send push notification to mentors for task ${savedTask.id}:`,
+              error,
+            );
+          });
+      }
     } else {
       console.warn(
         `Task ${savedTask.id} created without programId - skipping mentor notifications`,
       );
-    }
-
-    // Дополнительно: если указаны навыки, отправляем приоритетное уведомление волонтерам с навыками
-    if (createTaskDto.skillIds && createTaskDto.skillIds.length > 0) {
-      this.pushNotificationService
-        .sendToVolunteersBySkills(
-          createTaskDto.skillIds,
-          programId, // Используем programId (может быть дефолтным)
-          {
-            title: 'New Task Available',
-            body: savedTask.title,
-            data: {
-              type: 'new_task',
-              taskId: savedTask.id,
-            },
-            tag: `task-${savedTask.id}`,
-          },
-          taskCityId, // Передаем cityId для фильтрации уведомлений по городу
-        )
-        .catch((error) => {
-          console.error('Failed to send push notification for new task:', error);
-        });
     }
 
     return savedTask;
@@ -538,7 +543,51 @@ export class TaskService {
     task.status = TaskStatus.IN_PROGRESS;
     task.approveBy = []; // Очищаем массив подтверждений при назначении нового волонтера
 
-    return await this.taskRepository.save(task);
+    const savedTask = await this.taskRepository.save(task);
+
+    // Пуш назначенному и «Задачу взял другой» остальным (не при создании задачи — только при назначении)
+    const assignedUser = await this.userRepository.findOne({
+      where: { id: assignVolunteerDto.volunteerId },
+      select: ['language'],
+    });
+    const translations = getNotificationTranslations(assignedUser?.language);
+    this.pushNotificationService
+      .sendToUser(assignVolunteerDto.volunteerId, {
+        title: translations.responseApproved.title,
+        body: translations.responseApproved.body(savedTask.title),
+        data: { type: 'response_approved', taskId: savedTask.id },
+        tag: `task-${savedTask.id}`,
+      })
+      .catch((error) => {
+        this.logger.error('Failed to send push notification for assignment:', error);
+      });
+
+    const taskWithSkills = await this.taskRepository.findOne({
+      where: { id: savedTask.id },
+      relations: ['skills'],
+    });
+    const skillIds = taskWithSkills?.skills?.map((s) => s.id) ?? [];
+    const taskTakenTranslations = getNotificationTranslations(assignedUser?.language);
+    this.pushNotificationService
+      .sendTaskTakenToOtherVolunteers(
+        savedTask.programId,
+        assignVolunteerDto.volunteerId,
+        {
+          title: taskTakenTranslations.taskTakenByOther.title,
+          body: taskTakenTranslations.taskTakenByOther.body(savedTask.title),
+          data: { type: 'task_taken_by_other', taskId: savedTask.id },
+          tag: `task-${savedTask.id}`,
+        },
+        {
+          skillIds: skillIds.length > 0 ? skillIds : undefined,
+          cityId: savedTask.cityId ?? undefined,
+        },
+      )
+      .catch((error) => {
+        this.logger.error('Failed to send push "task taken by other":', error);
+      });
+
+    return savedTask;
   }
 
   async cancelAssignment(id: string, userMetadata: UserMetadata): Promise<Task> {
@@ -572,10 +621,15 @@ export class TaskService {
 
     // Отправляем уведомление волонтеру об отмене назначения
     if (previousVolunteerId) {
+      const volunteerUser = await this.userRepository.findOne({
+        where: { id: previousVolunteerId },
+        select: ['language'],
+      });
+      const t = getNotificationTranslations(volunteerUser?.language);
       this.pushNotificationService
         .sendToUser(previousVolunteerId, {
-          title: 'Task Assignment Cancelled',
-          body: `Assignment for task "${task.title}" has been cancelled`,
+          title: t.taskAssignmentCancelled.title,
+          body: t.taskAssignmentCancelled.body(task.title),
           data: {
             type: 'assignment_cancelled',
             taskId: task.id,
@@ -654,24 +708,29 @@ export class TaskService {
 
     const savedTask = await this.taskRepository.save(task);
 
-    // Отправляем уведомления об изменении статуса отдельно для каждой роли
-    // Это позволяет правильно определить редирект на frontend
-    
+    // Отправляем уведомления об изменении статуса с учётом языка получателя
+    const taskTitle = task.title;
+    const baseData = {
+      type: 'task_status_updated' as const,
+      taskId: task.id,
+      status: task.status,
+    };
+
     // Уведомление для волонтера (если он назначен)
     if (task.assignedVolunteerId) {
+      const volunteerUser = await this.userRepository.findOne({
+        where: { id: task.assignedVolunteerId },
+        select: ['language'],
+      });
+      const t = getNotificationTranslations(volunteerUser?.language);
       const isCompleted = task.status === TaskStatus.COMPLETED;
       this.pushNotificationService
         .sendToUser(task.assignedVolunteerId, {
-          title: isCompleted ? 'Task Completed' : 'Task Status Updated',
+          title: isCompleted ? t.taskCompleted.title : t.taskStatusUpdated.title,
           body: isCompleted
-            ? `Task "${task.title}" has been completed`
-            : `Task "${task.title}" status has been updated`,
-          data: {
-            type: 'task_status_updated',
-            taskId: task.id,
-            status: task.status,
-            role: 'volunteer', // Указываем роль для правильного редиректа
-          },
+            ? t.taskCompleted.body(taskTitle)
+            : t.taskStatusUpdated.body(taskTitle),
+          data: { ...baseData, role: 'volunteer' },
           tag: `task-${task.id}`,
         })
         .catch((error) => {
@@ -681,40 +740,36 @@ export class TaskService {
 
     // Уведомление для нуждающегося
     if (task.needyId) {
+      const needyUser = await this.userRepository.findOne({
+        where: { id: task.needyId },
+        select: ['language'],
+      });
+      const t = getNotificationTranslations(needyUser?.language);
       const isCompleted = task.status === TaskStatus.COMPLETED;
-      // Определяем, кто инициировал обновление статуса
       const isVolunteerApproval = approveTaskDto.role === TaskApproveRole.VOLUNTEER;
       const isNeedyApproval = approveTaskDto.role === TaskApproveRole.NEEDY;
-      
-      let title = 'Task Status Updated';
-      let body = `Task "${task.title}" status has been updated`;
-      
+
+      let title = t.taskStatusUpdated.title;
+      let body = t.taskStatusUpdated.body(taskTitle);
+
       if (isCompleted) {
         if (isVolunteerApproval) {
-          // Волонтер выполнил задачу - нуждающемуся нужно её подтвердить
-          title = 'Task Ready for Approval';
-          body = `Volunteer has completed task "${task.title}". Please approve it.`;
+          title = t.taskReadyForApproval.title;
+          body = t.taskReadyForApproval.body(taskTitle);
         } else if (isNeedyApproval) {
-          // Нуждающийся подтвердил - задача завершена
-          title = 'Task Completed';
-          body = `Task "${task.title}" has been completed`;
+          title = t.taskCompleted.title;
+          body = t.taskCompleted.body(taskTitle);
         }
       } else if (isVolunteerApproval) {
-        // Волонтер подтвердил выполнение, но нуждающийся еще не подтвердил
-        title = 'Task Completion Pending';
-        body = `Volunteer has marked task "${task.title}" as completed. Please review and approve.`;
+        title = t.taskCompletionPending.title;
+        body = t.taskCompletionPending.body(taskTitle);
       }
-      
+
       this.pushNotificationService
         .sendToUser(task.needyId, {
           title,
           body,
-          data: {
-            type: 'task_status_updated',
-            taskId: task.id,
-            status: task.status,
-            role: 'needy', // Указываем роль для правильного редиректа
-          },
+          data: { ...baseData, role: 'needy' },
           tag: `task-${task.id}`,
         })
         .catch((error) => {
@@ -774,13 +829,16 @@ export class TaskService {
     });
   }
 
-  async getAssignedTasks(userMetadata: UserMetadata): Promise<Task[]> {
+  async getAssignedTasks(userMetadata: UserMetadata): Promise<TaskWithVolunteerStatus[]> {
     if (userMetadata.role !== UserRole.VOLUNTEER) {
       throw new ForbiddenException('Only volunteers can view assigned tasks');
     }
 
-    const tasks = await this.taskRepository.find({
-      where: { assignedVolunteerId: userMetadata.userId },
+    const userId = userMetadata.userId;
+
+    // 1) Задачи, на которые волонтёр назначен
+    const assignedTasks = await this.taskRepository.find({
+      where: { assignedVolunteerId: userId },
       relations: [
         'program',
         'needy',
@@ -806,13 +864,61 @@ export class TaskService {
       order: { createdAt: 'DESC' },
     });
 
-    // Дополнительная защита: очищаем чувствительные данные
-    return tasks.map(task => {
+    const assignedIds = new Set(assignedTasks.map((t) => t.id));
+    const result: TaskWithVolunteerStatus[] = assignedTasks.map((task) => {
       if (task.needy) {
-        task.needy = sanitizeUser(task.needy) as any;
+        (task as Task).needy = sanitizeUser(task.needy) as any;
       }
-      return task;
+      return { ...task, volunteerTaskStatus: 'assigned' as const };
     });
+
+    // 2) Задачи, на которые волонтёр откликнулся и ждёт решения (PENDING) — показываем во «Мои задачи» предварительно
+    const pendingResponses = await this.taskResponseRepository.find({
+      where: { volunteerId: userId, status: TaskResponseStatus.PENDING },
+      select: ['taskId'],
+    });
+    const pendingTaskIds = pendingResponses
+      .map((r) => r.taskId)
+      .filter((id) => !assignedIds.has(id));
+
+    if (pendingTaskIds.length > 0) {
+      const pendingTasks = await this.taskRepository.find({
+        where: { id: In(pendingTaskIds) },
+        relations: [
+          'program',
+          'needy',
+          'category',
+          'skills',
+        ],
+        select: {
+          needy: {
+            id: true,
+            phone: true,
+            email: true,
+            role: true,
+            status: true,
+            firstName: true,
+            lastName: true,
+            photo: true,
+            about: true,
+            createdAt: true,
+            updatedAt: true,
+            lastLoginAt: true,
+          },
+        },
+        order: { createdAt: 'DESC' },
+      });
+
+      for (const task of pendingTasks) {
+        if (task.needy) {
+          (task as Task).needy = sanitizeUser(task.needy) as any;
+        }
+        result.push({ ...task, volunteerTaskStatus: 'pending_response' as const });
+      }
+    }
+
+    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return result;
   }
 
   async getTasksForVolunteer(
