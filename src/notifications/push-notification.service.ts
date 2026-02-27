@@ -148,6 +148,8 @@ export class PushNotificationService {
 
     if (subscriptions.length === 0) {
       this.logger.debug(`No subscriptions found for users ${userIds.join(', ')}`);
+      const total = await this.subscriptionRepository.count();
+      this.logger.debug(`Total subscriptions in DB: ${total}`);
       return;
     }
 
