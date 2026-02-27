@@ -139,6 +139,7 @@ export class PushNotificationService {
     userIds: string[],
     payload: NotificationPayload,
   ): Promise<void> {
+    userIds = [...new Set(userIds)];
     if (userIds.length === 0) return;
 
     const subscriptions = await this.subscriptionRepository.find({
@@ -218,7 +219,7 @@ export class PushNotificationService {
       return;
     }
 
-    const userIds = volunteers.map((v) => v.userId);
+    const userIds = [...new Set(volunteers.map((v) => v.userId))];
     if (getPayloadByLanguage) {
       await this.sendToUsersWithLanguage(userIds, getPayloadByLanguage);
     } else {
@@ -260,7 +261,7 @@ export class PushNotificationService {
       `Found ${volunteers.length} volunteers in program ${programId}${cityId ? ` in city ${cityId}` : ''}`,
     );
 
-    const userIds = volunteers.map((v) => v.userId);
+    const userIds = [...new Set(volunteers.map((v) => v.userId))];
     if (getPayloadByLanguage) {
       await this.sendToUsersWithLanguage(userIds, getPayloadByLanguage);
     } else {
@@ -298,7 +299,7 @@ export class PushNotificationService {
         });
       }
       const volunteers = await queryBuilder.getMany();
-      userIds = volunteers.map((v) => v.userId);
+      userIds = [...new Set(volunteers.map((v) => v.userId))];
     } else {
       let queryBuilder = this.volunteerRepository
         .createQueryBuilder('volunteer')
@@ -310,7 +311,7 @@ export class PushNotificationService {
         });
       }
       const volunteers = await queryBuilder.getMany();
-      userIds = volunteers.map((v) => v.userId);
+      userIds = [...new Set(volunteers.map((v) => v.userId))];
     }
 
     const otherUserIds = userIds.filter((uid) => uid !== assignedVolunteerId);
@@ -350,6 +351,16 @@ export class PushNotificationService {
     subscriptions: PushSubscription[],
     payload: NotificationPayload,
   ): Promise<void> {
+    // Один push на endpoint — один endpoint = одно устройство
+    const byEndpoint = new Map<string, PushSubscription>();
+    for (const sub of subscriptions) {
+      const existing = byEndpoint.get(sub.endpoint);
+      if (!existing || new Date(sub.createdAt) > new Date(existing.createdAt)) {
+        byEndpoint.set(sub.endpoint, sub);
+      }
+    }
+    const uniqueSubs = Array.from(byEndpoint.values());
+
     const pushPayload = JSON.stringify({
       title: payload.title,
       body: payload.body,
@@ -367,7 +378,7 @@ export class PushNotificationService {
     }
 
     const results = await Promise.allSettled(
-      subscriptions.map(async (subscription) => {
+      uniqueSubs.map(async (subscription) => {
         try {
           const pushSubscription = {
             endpoint: subscription.endpoint,
@@ -409,7 +420,7 @@ export class PushNotificationService {
     const failed = results.filter((r) => r.status === 'rejected').length;
     if (failed > 0) {
       this.logger.warn(
-        `Failed to send ${failed} out of ${subscriptions.length} notifications`,
+        `Failed to send ${failed} out of ${uniqueSubs.length} notifications`,
       );
     }
   }
