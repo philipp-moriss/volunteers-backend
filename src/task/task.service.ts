@@ -39,7 +39,6 @@ import { CityGroupService } from 'src/city-group/city-group.service';
 import { PointsService } from 'src/points/points.service';
 import { PointsTransactionType } from 'src/points/entities/points-transaction.entity';
 import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
-import { TaskResponse } from './entities/task-response.entity';
 import { TaskResponseStatus } from './types/task-response-status.enum';
 
 export type VolunteerTaskStatus = 'assigned' | 'pending_response';
