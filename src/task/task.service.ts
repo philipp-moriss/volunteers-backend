@@ -41,9 +41,10 @@ import { PointsTransactionType } from 'src/points/entities/points-transaction.en
 import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
 import { TaskResponseStatus } from './types/task-response-status.enum';
 
-export type VolunteerTaskStatus = 'assigned' | 'pending_response';
 
-export type TaskWithVolunteerStatus = Task & { volunteerTaskStatus: VolunteerTaskStatus };
+export type TaskWithVolunteerStatus = Task & {
+  hasMyResponse?: boolean;
+};
 
 @Injectable()
 export class TaskService {
@@ -868,7 +869,7 @@ export class TaskService {
       if (task.needy) {
         (task as Task).needy = sanitizeUser(task.needy) as any;
       }
-      return { ...task, volunteerTaskStatus: 'assigned' as const };
+      return task;
     });
 
     // 2) Задачи, на которые волонтёр откликнулся и ждёт решения (PENDING) — показываем во «Мои задачи» предварительно
@@ -912,12 +913,36 @@ export class TaskService {
         if (task.needy) {
           (task as Task).needy = sanitizeUser(task.needy) as any;
         }
-        result.push({ ...task, volunteerTaskStatus: 'pending_response' as const });
+        result.push(task);
       }
     }
 
-    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return result;
+    const allTaskIds = result.map((task) => task.id);
+
+    if (allTaskIds.length === 0) {
+      return [];
+    }
+
+    const myResponses = await this.taskResponseRepository.find({
+      where: {
+        volunteerId: userId as any,
+        taskId: In(allTaskIds as any),
+      },
+      select: ['taskId'],
+    });
+
+    const tasksWithMyResponse = new Set(myResponses.map((response) => response.taskId));
+
+    const resultWithFlag = result.map((task) => ({
+      ...task,
+      hasMyResponse: tasksWithMyResponse.has(task.id),
+    }));
+
+    resultWithFlag.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    return resultWithFlag;
   }
 
   async getTasksForVolunteer(
