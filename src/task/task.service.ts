@@ -567,20 +567,26 @@ export class TaskService {
       relations: ['skills'],
     });
     const skillIds = taskWithSkills?.skills?.map((s) => s.id) ?? [];
-    const taskTakenTranslations = getNotificationTranslations(assignedUser?.language);
+    const taskTitle = savedTask.title;
+    const taskId = savedTask.id;
+    const getPayloadByLanguage = (lang: SupportedLanguage) => {
+      const t = getNotificationTranslations(lang);
+      return {
+        title: t.taskTakenByOther.title,
+        body: t.taskTakenByOther.body(taskTitle),
+        data: { type: 'task_taken_by_other' as const, taskId },
+        tag: `task-${taskId}`,
+      };
+    };
     this.pushNotificationService
       .sendTaskTakenToOtherVolunteers(
         savedTask.programId,
         assignVolunteerDto.volunteerId,
-        {
-          title: taskTakenTranslations.taskTakenByOther.title,
-          body: taskTakenTranslations.taskTakenByOther.body(savedTask.title),
-          data: { type: 'task_taken_by_other', taskId: savedTask.id },
-          tag: `task-${savedTask.id}`,
-        },
+        getPayloadByLanguage('he'),
         {
           skillIds: skillIds.length > 0 ? skillIds : undefined,
           cityId: savedTask.cityId ?? undefined,
+          getPayloadByLanguage,
         },
       )
       .catch((error) => {

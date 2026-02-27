@@ -93,7 +93,7 @@ export class User {
     type: 'varchar',
     length: 10,
     nullable: true,
-    default: 'en',
+    default: 'he',
   })
   language?: string;
 
