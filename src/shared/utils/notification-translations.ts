@@ -44,6 +44,14 @@ export const notificationTranslations = {
       title: 'Task Taken',
       body: (taskTitle: string) => `Sorry, but another volunteer took the task "${taskTitle}"`,
     },
+    pendingApproval: {
+      title: 'Registration Received',
+      body: 'Your registration has been submitted. Please wait for admin approval.',
+    },
+    approvedByAdmin: {
+      title: 'Approved',
+      body: 'Your account has been approved by an administrator.',
+    },
   },
   he: {
     newTask: {
@@ -88,6 +96,14 @@ export const notificationTranslations = {
       title: 'המשימה נלקחה',
       body: (taskTitle: string) => `מצטערים, מתנדב אחר לקח את המשימה "${taskTitle}"`,
     },
+    pendingApproval: {
+      title: 'ההרשמה התקבלה',
+      body: 'ההרשמה שלך נשלחה. אנא המתן לאישור המנהל.',
+    },
+    approvedByAdmin: {
+      title: 'אושר',
+      body: 'החשבון שלך אושר על ידי המנהל.',
+    },
   },
   ru: {
     newTask: {
@@ -131,6 +147,14 @@ export const notificationTranslations = {
     taskTakenByOther: {
       title: 'Задачу взял другой волонтёр',
       body: (taskTitle: string) => `Извините, но задачу "${taskTitle}" взял другой волонтёр`,
+    },
+    pendingApproval: {
+      title: 'Регистрация получена',
+      body: 'Ваша регистрация отправлена. Пожалуйста, дождитесь одобрения администратора.',
+    },
+    approvedByAdmin: {
+      title: 'Одобрено',
+      body: 'Ваш аккаунт одобрен администратором.',
     },
   },
 };

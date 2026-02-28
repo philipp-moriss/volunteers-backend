@@ -6,7 +6,11 @@ import { PushSubscription } from './entities/push-subscription.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
-import type { SupportedLanguage } from 'src/shared/utils/notification-translations';
+import {
+  getNotificationTranslations,
+  type SupportedLanguage,
+} from 'src/shared/utils/notification-translations';
+import { UserStatus } from 'src/shared/user/type';
 
 export interface NotificationPayload {
   title: string;
@@ -60,7 +64,28 @@ export class PushNotificationService {
       auth: keys.auth,
     });
 
-    return this.subscriptionRepository.save(subscription);
+    const saved = await this.subscriptionRepository.save(subscription);
+
+    // Push для needy/volunteer в статусе pending — подтверждение регистрации
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'status', 'language'],
+    });
+    if (user?.status === UserStatus.PENDING) {
+      const t = getNotificationTranslations(user.language);
+      this.sendToUser(userId, {
+        title: t.pendingApproval.title,
+        body: t.pendingApproval.body,
+        tag: 'pending-approval',
+        data: { type: 'pending_approval' },
+      }).catch((err) =>
+        this.logger.warn(
+          `Failed to send pending-approval push to ${userId}: ${err.message}`,
+        ),
+      );
+    }
+
+    return saved;
   }
 
   /**

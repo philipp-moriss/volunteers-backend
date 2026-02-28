@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserStatus, UserRole } from 'src/shared/user';
 import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
@@ -19,9 +19,13 @@ import {
 } from './types/user';
 import { UUID } from 'crypto';
 import { sanitizeUser } from 'src/shared/utils/user-sanitizer';
+import { PushNotificationService } from 'src/notifications/push-notification.service';
+import { getNotificationTranslations } from 'src/shared/utils/notification-translations';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -36,6 +40,7 @@ export class UserService {
     @InjectRepository(Program)
     private programRepository: Repository<Program>,
     private dataSource: DataSource,
+    private pushNotificationService: PushNotificationService,
   ) {}
 
   async create(createUserDto: Partial<CreateUserDto>, creatorId?: string): Promise<UserWithRoleData> {
@@ -409,10 +414,10 @@ export class UserService {
 
     const { role, skills, programId, creatorId, cityId, address, ...userFields } = updateUserDto;
 
-    // Audit: when setting status to APPROVED for volunteer, record who approved and when
+    // Audit: when setting status to APPROVED for volunteer or needy, record who approved and when
     if (
       userFields.status === UserStatus.APPROVED &&
-      user.role === UserRole.VOLUNTEER &&
+      (user.role === UserRole.VOLUNTEER || user.role === UserRole.NEEDY) &&
       adminUserId
     ) {
       (userFields as Partial<User>).approvedById = adminUserId;
@@ -465,6 +470,27 @@ export class UserService {
         // Обновляем основные поля пользователя
         if (Object.keys(userFields).length > 0) {
           await userRepository.update(id, userFields);
+
+          // Push при одобрении: status pending → approved для needy/volunteer
+          if (
+            userFields.status === UserStatus.APPROVED &&
+            user.status === UserStatus.PENDING &&
+            (user.role === UserRole.VOLUNTEER || user.role === UserRole.NEEDY)
+          ) {
+            const t = getNotificationTranslations(user.language);
+            this.pushNotificationService
+              .sendToUser(id, {
+                title: t.approvedByAdmin.title,
+                body: t.approvedByAdmin.body,
+                tag: 'approved-by-admin',
+                data: { type: 'approved_by_admin' },
+              })
+              .catch((err) =>
+                this.logger.warn(
+                  `Failed to send approved-by-admin push to ${id}: ${err?.message}`,
+                ),
+              );
+          }
         }
         await userRepository.update(id, { role });
 
@@ -500,6 +526,27 @@ export class UserService {
     // Если роль не изменяется, просто обновляем поля пользователя
     if (Object.keys(userFields).length > 0) {
       await this.userRepository.update(id, userFields);
+
+      // Push при одобрении: status pending → approved для needy/volunteer
+      if (
+        userFields.status === UserStatus.APPROVED &&
+        user.status === UserStatus.PENDING &&
+        (user.role === UserRole.VOLUNTEER || user.role === UserRole.NEEDY)
+      ) {
+        const t = getNotificationTranslations(user.language);
+        this.pushNotificationService
+          .sendToUser(id, {
+            title: t.approvedByAdmin.title,
+            body: t.approvedByAdmin.body,
+            tag: 'approved-by-admin',
+            data: { type: 'approved_by_admin' },
+          })
+          .catch((err) =>
+            this.logger.warn(
+              `Failed to send approved-by-admin push to ${id}: ${err?.message}`,
+            ),
+          );
+      }
     }
 
     // Если обновляются skills, programId, cityId или address для существующей роли
