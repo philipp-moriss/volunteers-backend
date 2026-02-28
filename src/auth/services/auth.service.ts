@@ -321,6 +321,7 @@ export class AuthService {
       user: {
         id: user.id,
         role: user.role,
+        status: user.status,
         phone: user.phone,
         email: user.email,
         firstName: user.firstName,
