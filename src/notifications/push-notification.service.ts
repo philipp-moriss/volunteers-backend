@@ -51,7 +51,25 @@ export class PushNotificationService {
     if (existingSameEndpoint) {
       existingSameEndpoint.p256dh = keys.p256dh;
       existingSameEndpoint.auth = keys.auth;
-      return this.subscriptionRepository.save(existingSameEndpoint);
+      const saved = await this.subscriptionRepository.save(existingSameEndpoint);
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'status', 'language'],
+      });
+      if (user?.status === UserStatus.PENDING) {
+        const t = getNotificationTranslations(user.language);
+        this.sendToSubscriptions([saved], {
+          title: t.pendingApproval.title,
+          body: t.pendingApproval.body,
+          tag: 'pending-approval',
+          data: { type: 'pending_approval' },
+        }).catch((err) =>
+          this.logger.warn(
+            `Failed to send pending-approval push to ${userId}: ${err.message}`,
+          ),
+        );
+      }
+      return saved;
     }
 
     // Удаляем остальные подписки этого пользователя — одна подписка на пользователя, без лишних
@@ -67,13 +85,14 @@ export class PushNotificationService {
     const saved = await this.subscriptionRepository.save(subscription);
 
     // Push для needy/volunteer в статусе pending — подтверждение регистрации
+    // Используем saved напрямую (не sendToUser), т.к. подписка только что сохранена
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: ['id', 'status', 'language'],
     });
     if (user?.status === UserStatus.PENDING) {
       const t = getNotificationTranslations(user.language);
-      this.sendToUser(userId, {
+      this.sendToSubscriptions([saved], {
         title: t.pendingApproval.title,
         body: t.pendingApproval.body,
         tag: 'pending-approval',
