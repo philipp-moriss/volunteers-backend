@@ -38,7 +38,7 @@ export class NeedyInviteService {
 
     const baseUrl =
       this.configService.get<string>('VOLUNTEERS_FRONT_URL') ||
-      'https://volunteers-front.vercel.app';
+      'https://volunteers-maagal.up.railway.app';
     const url = `${baseUrl}/needy-register?token=${token}`;
 
     return { url };
@@ -85,7 +85,8 @@ export class NeedyInviteService {
 
   private formatPhone(phone: string): string {
     const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('8') && digits.length === 11) return '+7' + digits.substring(1);
+    if (digits.startsWith('8') && digits.length === 11)
+      return '+7' + digits.substring(1);
     if (digits.startsWith('7') && digits.length === 11) return '+' + digits;
     return phone.startsWith('+') ? phone : '+' + digits;
   }
