@@ -9,10 +9,12 @@ import { Admin } from './entities/admin.entity';
 import { Skill } from 'src/skills/entities/skill.entity';
 import { Program } from 'src/program/entities/program.entity';
 import { City } from 'src/city/entities/city.entity';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Volunteer, Needy, Admin, Skill, Program, City]),
+    NotificationsModule,
   ],
   controllers: [UserController],
   providers: [UserService],

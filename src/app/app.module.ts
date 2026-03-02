@@ -35,6 +35,8 @@ import { PointsTransaction } from 'src/points/entities/points-transaction.entity
 import { VolunteerRatingModule } from 'src/volunteer-rating/volunteer-rating.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ImageModule } from 'src/image/image.module';
+import { NeedyInviteModule } from 'src/needy-invite/needy-invite.module';
+import { NeedyInvitation } from 'src/needy-invite/entities/needy-invitation.entity';
 
 @Module({
   imports: [
@@ -85,6 +87,7 @@ import { ImageModule } from 'src/image/image.module';
             CityGroup,
             VolunteerRating,
             PointsTransaction,
+            NeedyInvitation,
           ],
         };
       },
@@ -102,6 +105,7 @@ import { ImageModule } from 'src/image/image.module';
     CityModule,
     CityGroupModule,
     PointsModule,
+    NeedyInviteModule,
   ],
   controllers: [AppController],
   providers: [AppService],

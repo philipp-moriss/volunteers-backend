@@ -13,6 +13,7 @@ export class AuthResponseDto {
     properties: {
       id: { type: 'string' },
       role: { enum: Object.values(UserRole) },
+      status: { type: 'string', enum: ['pending', 'approved', 'blocked', 'rejected'] },
       phone: { type: 'string', nullable: true },
       email: { type: 'string', nullable: true },
       firstName: { type: 'string', nullable: true },
@@ -22,6 +23,7 @@ export class AuthResponseDto {
   user: {
     id: string;
     role: UserRole;
+    status?: string;
     phone?: string;
     email?: string;
     firstName?: string;
