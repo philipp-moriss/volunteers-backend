@@ -1,11 +1,14 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
-  NotFoundException
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UUID } from 'crypto';
 import { Category } from 'src/categories/entities/category.entity';
+import { UserRole } from 'src/shared/user';
+import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { In, Repository } from 'typeorm';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
@@ -21,7 +24,10 @@ export class SkillsService {
     private readonly categoryRepository: Repository<Category>,
   ) {}
 
-  async create(createSkillDto: CreateSkillDto): Promise<Skill> {
+  async create(
+    createSkillDto: CreateSkillDto,
+    user: UserMetadata,
+  ): Promise<Skill> {
     const category = await this.categoryRepository.findOne({
       where: { id: createSkillDto.categoryId },
     });
@@ -35,6 +41,8 @@ export class SkillsService {
     const skill = this.skillRepository.create({
       ...createSkillDto,
       category,
+      createdByRole: user.role,
+      createdByUserId: user.userId,
     });
 
     return await this.skillRepository.save(skill);
@@ -119,7 +127,7 @@ export class SkillsService {
     return await this.skillRepository.save(Array.from(skillsById.values()));
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, user: UserMetadata): Promise<void> {
     const skill = await this.skillRepository.findOne({
       where: { id },
       relations: ['volunteers'],
@@ -129,7 +137,17 @@ export class SkillsService {
       throw new NotFoundException(`Skill with ID ${id} not found`);
     }
 
-    if (skill.volunteers && skill.volunteers.length > 0) {
+    const isAdmin = user.role === UserRole.ADMIN;
+    const isAdminCreated =
+      !skill.createdByRole || skill.createdByRole === UserRole.ADMIN;
+
+    if (!isAdmin && isAdminCreated) {
+      throw new ForbiddenException(
+        `Only admin can delete system skills with ID ${id}`,
+      );
+    }
+
+    if (isAdminCreated && skill.volunteers && skill.volunteers.length > 0) {
       throw new ConflictException(
         `Cannot delete skill with ID ${id} because it is associated with volunteers`,
       );

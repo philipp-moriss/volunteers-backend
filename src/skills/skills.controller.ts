@@ -9,12 +9,19 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { SkillsService } from './skills.service';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
 import { QuerySkillsDto } from './dto/query.dto';
 import { BulkUpdateSkillsDto } from './dto/bulk-update-skills.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import {
+  GetUserMetadata,
+  UserMetadata,
+} from 'src/shared/decorators/get-user.decorator';
 
 @Controller('skills')
 export class SkillsController {
@@ -22,8 +29,13 @@ export class SkillsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createSkillDto: CreateSkillDto) {
-    return this.skillsService.create(createSkillDto);
+  @ApiBearerAuth('JWT')
+  @UseGuards(JwtAuthGuard)
+  create(
+    @Body() createSkillDto: CreateSkillDto,
+    @GetUserMetadata() user: UserMetadata,
+  ) {
+    return this.skillsService.create(createSkillDto, user);
   }
 
   @Get()
@@ -49,7 +61,9 @@ export class SkillsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
-    return this.skillsService.remove(id);
+  @ApiBearerAuth('JWT')
+  @UseGuards(JwtAuthGuard)
+  remove(@Param('id') id: string, @GetUserMetadata() user: UserMetadata) {
+    return this.skillsService.remove(id, user);
   }
 }
