@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { Category } from 'src/categories/entities/category.entity';
 import { Volunteer } from 'src/user/entities/volunteer.entity';
+import { UserRole } from 'src/shared/user';
 
 @Entity({ name: 'skills' })
 export class Skill {
@@ -54,6 +55,21 @@ export class Skill {
     },
   })
   volunteers?: Volunteer[];
+
+  @Column({
+    name: 'created_by_role',
+    type: 'enum',
+    enum: UserRole,
+    nullable: true,
+  })
+  createdByRole?: UserRole | null;
+
+  @Column({
+    name: 'created_by_user_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  createdByUserId?: string | null;
 
   @CreateDateColumn({
     name: 'created_at',

@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 const DEFAULT_SMS_API_URL = 'https://019sms.co.il/api';
+const SMS_API_TIMEOUT_MS = 15000;
 
 interface Sms019Response {
   status?: number;
@@ -57,60 +58,84 @@ export class SmsService {
       smsPayload.includes_international = '1';
     }
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ sms: smsPayload }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      SMS_API_TIMEOUT_MS,
+    );
 
-    const responseText = await response.text();
-    let data: Sms019Response = {};
     try {
-      data = responseText ? JSON.parse(responseText) : {};
-    } catch {
-      this.logger.warn(
-        `019sms response is not JSON: ${responseText.slice(0, 200)}`,
-      );
-    }
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sms: smsPayload }),
+        signal: controller.signal,
+      });
 
-    const status = data.status ?? (response.ok ? 0 : -1);
+      const responseText = await response.text();
+      let data: Sms019Response = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        this.logger.warn(
+          `019sms response is not JSON: ${responseText.slice(0, 200)}`,
+        );
+      }
 
-    if (status !== 0) {
-      const msg = data.message ?? responseText ?? `HTTP ${response.status}`;
-      this.logger.warn(`019sms error status=${status} message=${msg}`);
-      if (status === 3 || status === 10 || status === 11) {
-        const hint =
-          status === 11
-            ? ' Token and SMS_USERNAME must belong to the same 019sms account; create a new token in the dashboard (Settings → API Token Management) for the user set in SMS_USERNAME.'
-            : '';
+      const status = data.status ?? (response.ok ? 0 : -1);
+
+      if (status !== 0) {
+        const msg = data.message ?? responseText ?? `HTTP ${response.status}`;
+        this.logger.warn(`019sms error status=${status} message=${msg}`);
+        if (status === 3 || status === 10 || status === 11) {
+          const hint =
+            status === 11
+              ? ' Token and SMS_USERNAME must belong to the same 019sms account; create a new token in the dashboard (Settings → API Token Management) for the user set in SMS_USERNAME.'
+              : '';
+          throw new ServiceUnavailableException(
+            `SMS service authentication error.${hint}`,
+          );
+        }
+        if (status === 4 || status === 12) {
+          throw new ServiceUnavailableException(
+            'Insufficient balance on SMS service account.',
+          );
+        }
+        if (status === 2) {
+          throw new BadRequestException(
+            'SMS request is missing a required field (e.g. username). Set SMS_USERNAME in .env.',
+          );
+        }
+        if (status === 9) {
+          throw new BadRequestException('Invalid phone number format.');
+        }
+        if (status === 997) {
+          throw new BadRequestException(
+            'Invalid SMS API command. Check request format (username, source, destinations, message).',
+          );
+        }
         throw new ServiceUnavailableException(
-          `SMS service authentication error.${hint}`,
+          `SMS send error: ${typeof msg === 'string' ? msg : 'unknown error'}`,
         );
       }
-      if (status === 4 || status === 12) {
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || error.message.includes('aborted'))
+      ) {
+        this.logger.error(
+          `019sms request timed out after ${SMS_API_TIMEOUT_MS}ms`,
+        );
         throw new ServiceUnavailableException(
-          'Insufficient balance on SMS service account.',
+          'SMS service timeout. Please try again later.',
         );
       }
-      if (status === 2) {
-        throw new BadRequestException(
-          'SMS request is missing a required field (e.g. username). Set SMS_USERNAME in .env.',
-        );
-      }
-      if (status === 9) {
-        throw new BadRequestException('Invalid phone number format.');
-      }
-      if (status === 997) {
-        throw new BadRequestException(
-          'Invalid SMS API command. Check request format (username, source, destinations, message).',
-        );
-      }
-      throw new ServiceUnavailableException(
-        `SMS send error: ${typeof msg === 'string' ? msg : 'unknown error'}`,
-      );
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
   /**
