@@ -98,7 +98,7 @@ export class TaskService {
       this.logger.warn(
         `Program ${programId} not found, using default program ${DEFAULT_PROGRAM_ID}`,
       );
-      programId = DEFAULT_PROGRAM_ID;
+      programId = DEFAULT_PROGRAM_ID as `${string}-${string}-${string}-${string}-${string}`;
       program = await this.programRepository.findOne({
         where: { id: programId },
       });
