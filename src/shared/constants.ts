@@ -5,7 +5,8 @@ export const DEFAULT_PAGE = 1;
 export const DEFAULT_LIMIT = 10;
 
 // Default program: "Assistance to widows" - основная программа для всех пользователей
-export const DEFAULT_PROGRAM_ID = '69574d41-16d3-4989-bdcb-3695fe385fe6';
+export const DEFAULT_PROGRAM_ID =
+  process.env.DEFAULT_PROGRAM_ID ?? '2e190188-94d3-4643-baa2-afa4bbe9a281';
 
 export enum RolesEnum {
   Admin = 'Admin',
