@@ -53,10 +53,6 @@ export class NeedyInviteService {
       throw new NotFoundException('Invalid or expired invitation');
     }
 
-    if (invite.usedAt) {
-      throw new BadRequestException('Invitation has already been used');
-    }
-
     if (new Date() > invite.expiresAt) {
       throw new BadRequestException('Invitation has expired');
     }
@@ -75,9 +71,6 @@ export class NeedyInviteService {
       },
       invite.creatorId,
     );
-
-    invite.usedAt = new Date();
-    await this.inviteRepository.save(invite);
 
     this.logger.log(`Needy registered via invite: userId=${user.id}`);
     return { userId: user.id };
