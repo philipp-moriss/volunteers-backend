@@ -40,6 +40,7 @@ import { PointsService } from 'src/points/points.service';
 import { PointsTransactionType } from 'src/points/entities/points-transaction.entity';
 import { DEFAULT_PROGRAM_ID } from 'src/shared/constants';
 import { TaskResponseStatus } from './types/task-response-status.enum';
+import { UUID } from 'crypto';
 
 
 export type TaskWithVolunteerStatus = Task & {
@@ -1128,12 +1129,14 @@ export class TaskService {
     );
 
     // Fallback: если AI вернул null/пустой — подставляем первую категорию и навыки
-    const categoryId =
-      aiGeneratedTask.categoryId ?? categories[0]?.id ?? null;
-    const skillIds =
-      aiGeneratedTask.skillIds?.length > 0
-        ? aiGeneratedTask.skillIds
-        : skills.slice(0, 2).map((s) => s.id);
+    const categoryId: UUID | undefined =
+      (aiGeneratedTask.categoryId as UUID | undefined) ??
+      (categories[0]?.id as UUID) ??
+      undefined;
+    const skillIds: UUID[] =
+      (aiGeneratedTask.skillIds?.length ?? 0) > 0
+        ? (aiGeneratedTask.skillIds as UUID[])
+        : skills.slice(0, 2).map((s) => s.id as UUID);
 
     return {
       type: aiGeneratedTask.type,
