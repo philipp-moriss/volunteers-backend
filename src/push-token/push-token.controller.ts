@@ -15,6 +15,7 @@ import { GetUserMetadata, UserMetadata } from 'src/shared/decorators/get-user.de
 import { PushTokenService } from './push-token.service';
 import { FcmService } from 'src/fcm/fcm.service';
 import { RegisterFcmDto } from './dto/register-fcm.dto';
+import { TestFcmDto } from './dto/test-fcm.dto';
 
 @ApiTags('push')
 @Controller('push')
@@ -74,14 +75,7 @@ export class PushTokenController {
   @Post('test/fcm')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Тестовая отправка push на FCM токен (открытый для тестирования)' })
-  async testFcm(
-    @Body()
-    body: {
-      token?: string;
-      title?: string;
-      body?: string;
-    },
-  ) {
+  async testFcm(@Body() body: TestFcmDto) {
     const token = body?.token;
     if (!token || typeof token !== 'string') {
       throw new BadRequestException('Missing or invalid "token" in request body');
