@@ -38,6 +38,7 @@ lerna-debug.log*
 # Firebase / Google credentials (use FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH env)
 *-firebase-adminsdk-*.json
 firebase-credentials*.json
+firebase-service-account.json
 
 # dotenv environment variable files
 .env

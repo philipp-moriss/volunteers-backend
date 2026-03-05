@@ -69,7 +69,36 @@ export class PushTokenController {
       dto.platform,
       dto.deviceId,
     );
+    this.logger.log(
+      `POST /push/fcm/register success userId=${user.userId} platform=${dto.platform} token=${dto.token?.substring(0, 30)}...`,
+    );
     return { success: true };
+  }
+
+  @Post('send')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Отправка push на FCM токен (требуется авторизация)' })
+  async sendFcm(@Body() body: TestFcmDto) {
+    const token = body?.token;
+    if (!token || typeof token !== 'string') {
+      throw new BadRequestException('Missing or invalid "token" in request body');
+    }
+    const result = await this.fcmService.sendNotificationToDevice(
+      token,
+      body.title ?? 'Push',
+      body.body ?? '',
+      JSON.stringify({ type: 'custom', timestamp: new Date().toISOString() }),
+    );
+    this.logger.log(
+      `POST /push/send success=${result.success} ${result.success ? `messageId=${result.messageId}` : `error=${result.error}`}`,
+    );
+    return {
+      success: result.success,
+      messageId: result.messageId,
+      error: result.error,
+    };
   }
 
   @Post('test/fcm')
