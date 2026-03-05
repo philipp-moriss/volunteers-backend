@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -76,13 +77,17 @@ export class PushTokenController {
   async testFcm(
     @Body()
     body: {
-      token: string;
+      token?: string;
       title?: string;
       body?: string;
     },
   ) {
+    const token = body?.token;
+    if (!token || typeof token !== 'string') {
+      throw new BadRequestException('Missing or invalid "token" in request body');
+    }
     const result = await this.fcmService.sendNotificationToDevice(
-      body.token,
+      token,
       body.title ?? 'Test FCM',
       body.body ?? 'Test notification from backend',
       JSON.stringify({ type: 'test', timestamp: new Date().toISOString() }),
