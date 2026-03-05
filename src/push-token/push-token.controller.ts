@@ -27,9 +27,7 @@ export class PushTokenController {
 
   @Get('fcm/tokens')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Список всех FCM токенов (для тестирования)' })
+  @ApiOperation({ summary: 'Список всех FCM токенов (открытый для тестирования)' })
   async getAllFcmTokens() {
     const tokens = await this.pushTokenService.getAllFcmTokens();
     return {
@@ -74,11 +72,8 @@ export class PushTokenController {
 
   @Post('test/fcm')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Тестовая отправка push на FCM токен' })
+  @ApiOperation({ summary: 'Тестовая отправка push на FCM токен (открытый для тестирования)' })
   async testFcm(
-    @GetUserMetadata() user: UserMetadata,
     @Body()
     body: {
       token: string;
@@ -94,14 +89,13 @@ export class PushTokenController {
     );
 
     this.logger.log(
-      `POST /push/test/fcm userId=${user.userId} platform=ios success=${result.success} ${result.success ? `messageId=${result.messageId}` : `error=${result.error}`}`,
+      `POST /push/test/fcm success=${result.success} ${result.success ? `messageId=${result.messageId}` : `error=${result.error}`}`,
     );
 
     return {
       success: result.success,
       messageId: result.messageId,
       error: result.error,
-      userId: user.userId,
       platform: 'ios',
     };
   }

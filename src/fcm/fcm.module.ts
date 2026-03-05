@@ -52,7 +52,7 @@ const firebaseProvider = {
         credential: admin.credential.cert(serviceAccount),
       });
       console.log(
-        `[FCM Module] ✅ Firebase connected | projectId=${serviceAccount.project_id}`,
+        `[FCM Module] ✅ Firebase connected | projectId=${serviceAccount.projectId}`,
       );
       return app;
     } catch (error) {
