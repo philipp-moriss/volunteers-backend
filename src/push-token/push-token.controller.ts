@@ -11,9 +11,6 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { GetUserMetadata, UserMetadata } from 'src/shared/decorators/get-user.decorator';
-import { Roles } from 'src/shared/decorators/roles.decorator';
-import { RolesGuard } from 'src/shared/guards/roles.guard';
-import { UserRole } from 'src/shared/user/type';
 import { PushTokenService } from './push-token.service';
 import { FcmService } from 'src/fcm/fcm.service';
 import { RegisterFcmDto } from './dto/register-fcm.dto';
@@ -30,10 +27,9 @@ export class PushTokenController {
 
   @Get('fcm/tokens')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Список всех FCM токенов (только админ, для Swagger)' })
+  @ApiOperation({ summary: 'Список всех FCM токенов (для тестирования)' })
   async getAllFcmTokens() {
     const tokens = await this.pushTokenService.getAllFcmTokens();
     return {
@@ -78,10 +74,9 @@ export class PushTokenController {
 
   @Post('test/fcm')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Тестовая отправка push на FCM токен (только админ)' })
+  @ApiOperation({ summary: 'Тестовая отправка push на FCM токен' })
   async testFcm(
     @GetUserMetadata() user: UserMetadata,
     @Body()
