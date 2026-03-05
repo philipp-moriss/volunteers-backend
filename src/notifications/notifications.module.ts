@@ -7,11 +7,15 @@ import { Volunteer } from 'src/user/entities/volunteer.entity';
 import { PushNotificationService } from './push-notification.service';
 import { NotificationsController } from './notifications.controller';
 import { setVapidDetails } from './utils/vapid.util';
+import { PushTokenModule } from 'src/push-token/push-token.module';
+import { FcmModule } from 'src/fcm/fcm.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([PushSubscription, User, Volunteer]),
     ConfigModule,
+    PushTokenModule,
+    FcmModule,
   ],
   controllers: [NotificationsController],
   providers: [

@@ -11,6 +11,8 @@ import {
   type SupportedLanguage,
 } from 'src/shared/utils/notification-translations';
 import { UserStatus } from 'src/shared/user/type';
+import { PushTokenService } from 'src/push-token/push-token.service';
+import { FcmService } from 'src/fcm/fcm.service';
 
 export interface NotificationPayload {
   title: string;
@@ -33,6 +35,8 @@ export class PushNotificationService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Volunteer)
     private readonly volunteerRepository: Repository<Volunteer>,
+    private readonly pushTokenService: PushTokenService,
+    private readonly fcmService: FcmService,
   ) {}
 
   /**
@@ -164,16 +168,13 @@ export class PushNotificationService {
     userId: string,
     payload: NotificationPayload,
   ): Promise<void> {
-    const subscriptions = await this.subscriptionRepository.find({
-      where: { userId },
-    });
-
-    if (subscriptions.length === 0) {
-      this.logger.debug(`No subscriptions found for user ${userId}`);
-      return;
-    }
+    const [subscriptions, fcmTokens] = await Promise.all([
+      this.subscriptionRepository.find({ where: { userId } }),
+      this.pushTokenService.getFcmTokensByUserIds([userId]),
+    ]);
 
     await this.sendToSubscriptions(subscriptions, payload);
+    await this.sendToFcmTokens(fcmTokens, payload);
   }
 
   /**
@@ -186,18 +187,15 @@ export class PushNotificationService {
     userIds = [...new Set(userIds)];
     if (userIds.length === 0) return;
 
-    const subscriptions = await this.subscriptionRepository.find({
-      where: { userId: In(userIds) },
-    });
-
-    if (subscriptions.length === 0) {
-      this.logger.debug(`No subscriptions found for users ${userIds.join(', ')}`);
-      const total = await this.subscriptionRepository.count();
-      this.logger.debug(`Total subscriptions in DB: ${total}`);
-      return;
-    }
+    const [subscriptions, fcmTokens] = await Promise.all([
+      this.subscriptionRepository.find({
+        where: { userId: In(userIds) },
+      }),
+      this.pushTokenService.getFcmTokensByUserIds(userIds),
+    ]);
 
     await this.sendToSubscriptions(subscriptions, payload);
+    await this.sendToFcmTokens(fcmTokens, payload);
   }
 
   /**
@@ -467,6 +465,41 @@ export class PushNotificationService {
     if (failed > 0) {
       this.logger.warn(
         `Failed to send ${failed} out of ${uniqueSubs.length} notifications`,
+      );
+    }
+  }
+
+  /**
+   * Отправка уведомлений по FCM токенам (iOS)
+   */
+  private async sendToFcmTokens(
+    fcmTokens: { token: string; userId: string; platform: string }[],
+    payload: NotificationPayload,
+  ): Promise<void> {
+    if (fcmTokens.length === 0) return;
+
+    const routePayload = JSON.stringify(payload.data || {});
+
+    const results = await Promise.allSettled(
+      fcmTokens.map(async (pt) => {
+        const result = await this.fcmService.sendNotificationToDevice(
+          pt.token,
+          payload.title,
+          payload.body,
+          routePayload,
+          payload.ttl ? payload.ttl * 1000 : undefined,
+        );
+        this.logger.log(
+          `FCM send to userId=${pt.userId} platform=${pt.platform}: ${result.success ? `messageId=${result.messageId}` : `error=${result.error}`}`,
+        );
+        return result;
+      }),
+    );
+
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) {
+      this.logger.warn(
+        `Failed to send FCM to ${failed} out of ${fcmTokens.length} devices`,
       );
     }
   }
