@@ -14,6 +14,7 @@ const firebaseProvider = {
     if (jsonEnv) {
       try {
         serviceAccount = JSON.parse(jsonEnv) as admin.ServiceAccount;
+        console.log('[FCM Module] Using credentials from FIREBASE_SERVICE_ACCOUNT_JSON');
       } catch (e) {
         console.error(
           `[FCM Module] ❌ FIREBASE_SERVICE_ACCOUNT_JSON invalid: ${e instanceof Error ? e.message : String(e)}`,
@@ -29,6 +30,7 @@ const firebaseProvider = {
           serviceAccount = JSON.parse(
             fs.readFileSync(jsonPath, 'utf8'),
           ) as admin.ServiceAccount;
+          console.log(`[FCM Module] Using credentials from file: ${jsonPath}`);
         } catch (e) {
           console.error(
             `[FCM Module] ❌ Firebase file parse error: ${e instanceof Error ? e.message : String(e)}`,
@@ -46,9 +48,13 @@ const firebaseProvider = {
     }
 
     try {
-      return admin.initializeApp({
+      const app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
+      console.log(
+        `[FCM Module] ✅ Firebase connected | projectId=${serviceAccount.project_id}`,
+      );
+      return app;
     } catch (error) {
       console.error(
         `[FCM Module] ❌ Firebase init error: ${error instanceof Error ? error.message : String(error)}`,
