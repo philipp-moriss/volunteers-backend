@@ -6,9 +6,9 @@ export class RegisterFcmDto {
   @IsString()
   token: string;
 
-  @ApiProperty({ description: 'Platform', enum: ['ios'] })
+  @ApiProperty({ description: 'Platform', enum: ['ios', 'android'] })
   @IsString()
-  @IsIn(['ios'])
+  @IsIn(['ios', 'android'])
   platform: string;
 
   @ApiPropertyOptional({ description: 'Device identifier' })
