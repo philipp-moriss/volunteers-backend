@@ -15,4 +15,14 @@ export class RegisterFcmDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
+
+  @ApiPropertyOptional({ description: 'Web device type', example: 'desktop' })
+  @IsOptional()
+  @IsString()
+  deviceType?: string;
+
+  @ApiPropertyOptional({ description: 'Browser user agent for web clients' })
+  @IsOptional()
+  @IsString()
+  userAgent?: string;
 }
