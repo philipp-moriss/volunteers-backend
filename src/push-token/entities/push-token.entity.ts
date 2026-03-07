@@ -29,6 +29,12 @@ export class PushToken {
   @Column({ name: 'device_id', type: 'varchar', length: 255, nullable: true })
   deviceId: string | null;
 
+  @Column({ name: 'device_type', type: 'varchar', length: 50, nullable: true })
+  deviceType: string | null;
+
+  @Column({ name: 'user_agent', type: 'text', nullable: true })
+  userAgent: string | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 

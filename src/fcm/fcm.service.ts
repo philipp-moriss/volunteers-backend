@@ -44,6 +44,22 @@ export class FcmService {
       return { success: false, error: 'Invalid device token' };
     }
 
+    let parsedPayload: Record<string, unknown> = {};
+    try {
+      parsedPayload = payload ? (JSON.parse(payload) as Record<string, unknown>) : {};
+    } catch {
+      parsedPayload = {};
+    }
+
+    const routeTaskId =
+      typeof parsedPayload.taskId === 'string' ? parsedPayload.taskId : undefined;
+    const routeLink =
+      typeof parsedPayload.link === 'string'
+        ? parsedPayload.link
+        : routeTaskId
+          ? `/tasks/${routeTaskId}`
+          : '/';
+
     const message: Message = {
       // Важно для iOS: наличие notification/aps.alert обеспечивает видимый push-баннер.
       notification: {
@@ -85,6 +101,24 @@ export class FcmService {
                 ),
               }
             : {}),
+        },
+      },
+      // Важно для Web/PWA (Android/Desktop): явный webpush.notification + link
+      webpush: {
+        headers: {
+          Urgency: 'high',
+          ...(ttl !== undefined && ttl >= 0
+            ? { TTL: String(Math.max(0, Math.floor(ttl / 1000))) }
+            : {}),
+        },
+        notification: {
+          title,
+          body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+        },
+        fcmOptions: {
+          link: routeLink,
         },
       },
     };

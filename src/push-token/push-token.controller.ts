@@ -41,6 +41,8 @@ export class PushTokenController {
         platform: t.platform,
         token: t.token,
         deviceId: t.deviceId,
+        deviceType: t.deviceType,
+        userAgent: t.userAgent,
         lastSeenAt: t.lastSeenAt,
         user: t.user
           ? {
@@ -58,7 +60,7 @@ export class PushTokenController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT')
-  @ApiOperation({ summary: 'Регистрация FCM токена для iOS' })
+  @ApiOperation({ summary: 'Регистрация FCM токена (ios/android/web)' })
   async registerFcm(
     @GetUserMetadata() user: UserMetadata,
     @Body() dto: RegisterFcmDto,
@@ -68,6 +70,8 @@ export class PushTokenController {
       dto.token,
       dto.platform,
       dto.deviceId,
+      dto.deviceType,
+      dto.userAgent,
     );
     this.logger.log(
       `POST /push/fcm/register success userId=${user.userId} platform=${dto.platform} token=${dto.token?.substring(0, 30)}...`,
@@ -124,7 +128,6 @@ export class PushTokenController {
       success: result.success,
       messageId: result.messageId,
       error: result.error,
-      platform: 'ios',
     };
   }
 }

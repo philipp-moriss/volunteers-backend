@@ -15,6 +15,8 @@ export class PushTokenService {
     token: string,
     platform: string,
     deviceId?: string,
+    deviceType?: string,
+    userAgent?: string,
   ): Promise<PushToken> {
     const existing = await this.pushTokenRepository.findOne({
       where: { token },
@@ -26,6 +28,8 @@ export class PushTokenService {
       existing.userId = userId;
       existing.platform = platform;
       existing.deviceId = deviceId ?? existing.deviceId;
+      existing.deviceType = deviceType ?? existing.deviceType;
+      existing.userAgent = userAgent ?? existing.userAgent;
       existing.isActive = true;
       existing.lastSeenAt = now;
       return this.pushTokenRepository.save(existing);
@@ -36,6 +40,8 @@ export class PushTokenService {
       token,
       platform,
       deviceId: deviceId ?? null,
+      deviceType: deviceType ?? null,
+      userAgent: userAgent ?? null,
       isActive: true,
       lastSeenAt: now,
     });
