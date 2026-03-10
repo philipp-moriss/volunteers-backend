@@ -7,10 +7,14 @@ import { CreateTaskDto } from 'src/task/dto/create-task.dto';
 export class AgentService {
   private readonly openaiClient: OpenAI;
   private readonly assistantId: string;
+  private readonly titleAssistantId: string;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     const assistantId = this.configService.get<string>('OPEN_AI_ASSISTENT_MAIN');
+    const titleAssistantId = this.configService.get<string>(
+      'OPEN_AI_ASSISTENT_TASK_TITLE',
+    );
 
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY is not defined in environment variables');
@@ -21,6 +25,10 @@ export class AgentService {
     }
 
     this.assistantId = assistantId;
+    // Для генерации title/description используем отдельного ассистента.
+    // Если переменная окружения не задана, используем дефолтный ID из запроса.
+    this.titleAssistantId =
+      titleAssistantId ?? 'asst_swm3DkUk3UBo5c39R6MgcJuv';
 
     this.openaiClient = new OpenAI({
       apiKey,
@@ -64,6 +72,51 @@ export class AgentService {
     } catch (error) {
       throw new BadRequestException(
         `Failed to process task with AI: ${error.message}`,
+      );
+    }
+  }
+
+  async generateTaskTitleAndDescription(input: {
+    language: string;
+    category: { id: string; name: string };
+    skills: { id: string; name: string; categoryId: string }[];
+  }): Promise<{ title: string; description: string }> {
+    try {
+      const thread = await this.openaiClient.beta.threads.create();
+
+      await this.openaiClient.beta.threads.messages.create(thread.id, {
+        role: 'user',
+        content: JSON.stringify({
+          language: input.language,
+          category: input.category,
+          skills: input.skills,
+        }),
+      });
+
+      const run = await this.openaiClient.beta.threads.runs.create(thread.id, {
+        assistant_id: this.titleAssistantId,
+      });
+
+      await this.waitForCompletion(run.id, thread.id);
+
+      const rawResponse = await this.extractResponse(thread.id);
+      const jsonContent = this.extractJsonFromResponse(rawResponse);
+
+      if (
+        !jsonContent ||
+        typeof jsonContent.title !== 'string' ||
+        typeof jsonContent.description !== 'string'
+      ) {
+        throw new Error('Invalid response: title and description are required');
+      }
+
+      return {
+        title: jsonContent.title,
+        description: jsonContent.description,
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to generate task title and description with AI: ${error.message}`,
       );
     }
   }

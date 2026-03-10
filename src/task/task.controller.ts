@@ -15,6 +15,7 @@ import { TaskService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
 import { GenerateTaskAiDto } from './dto/generate-task-ai.dto';
+import { GenerateTaskTitleAiDto } from './dto/generate-task-title-ai.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ApproveTaskDto } from './dto/approve-task.dto';
 import { AssignVolunteerDto } from './dto/assign-volunteer.dto';
@@ -51,6 +52,20 @@ export class TaskController {
     @Body() generateTaskAiDto: GenerateTaskAiDto,
   ) {
     return this.taskService.generateFromAi(generateTaskAiDto);
+  }
+
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary:
+      'Generate task title and description with AI based on selected category and skills (Needy or Admin)',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.NEEDY, UserRole.ADMIN)
+  @Post('ai-generate-title')
+  generateTitleFromAi(
+    @Body() generateTaskTitleAiDto: GenerateTaskTitleAiDto,
+  ) {
+    return this.taskService.generateTitleFromAi(generateTaskTitleAiDto);
   }
 
   @ApiBearerAuth('JWT')

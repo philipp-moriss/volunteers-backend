@@ -28,6 +28,7 @@ import { CategoriesService } from 'src/categories/categories.service';
 import { SkillsService } from 'src/skills/skills.service';
 import { CreateTaskAiDto } from './dto/create-task-ai.dto';
 import { GenerateTaskAiDto } from './dto/generate-task-ai.dto';
+import { GenerateTaskTitleAiDto } from './dto/generate-task-title-ai.dto';
 import { PushNotificationService } from 'src/notifications/push-notification.service';
 import {
   getNotificationTranslations,
@@ -1138,5 +1139,17 @@ export class TaskService {
       skillIds: aiGeneratedTask.skillIds,
       firstResponseMode: aiGeneratedTask.firstResponseMode ?? false,
     };
+  }
+
+  async generateTitleFromAi(
+    generateTaskTitleAiDto: GenerateTaskTitleAiDto,
+  ): Promise<{ title: string; description: string }> {
+    const { language, category, skills } = generateTaskTitleAiDto;
+
+    return this.agentService.generateTaskTitleAndDescription({
+      language,
+      category,
+      skills,
+    });
   }
 }
