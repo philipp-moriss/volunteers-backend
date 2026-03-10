@@ -47,10 +47,11 @@ export class CreateTaskDto {
   @ApiProperty({
     description: 'The description of the task',
     example: 'Нужно забрать ребенка из детского сада в 18:00',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  description: string;
+  @IsOptional()
+  description?: string;
 
   @ApiProperty({
     description: 'Additional details and answers to clarifying questions',
