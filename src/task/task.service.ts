@@ -269,6 +269,7 @@ export class TaskService {
       .leftJoinAndSelect('task.assignedVolunteer', 'assignedVolunteer')
       .leftJoinAndSelect('task.category', 'category')
       .leftJoinAndSelect('task.skills', 'skills')
+      .where('task.isDeleted = :isDeleted', { isDeleted: false })
       // Исключаем чувствительные поля из User relations
       .addSelect([
         'needy.id',
@@ -300,7 +301,7 @@ export class TaskService {
       ]);
 
     if (programId) {
-      queryBuilder.where('task.programId = :programId', { programId });
+      queryBuilder.andWhere('task.programId = :programId', { programId });
     }
 
     if (filters?.status) {
@@ -351,7 +352,7 @@ export class TaskService {
 
   async findOne(id: string): Promise<Task> {
     const task = await this.taskRepository.findOne({
-      where: { id },
+      where: { id, isDeleted: false },
       relations: [
         'program',
         'needy',
@@ -492,8 +493,9 @@ export class TaskService {
       throw new ForbiddenException('You can only delete your own tasks');
     }
 
-    // Меняем статус на CANCELLED вместо удаления
+    // Софт-делит: меняем статус и помечаем как удалённую
     task.status = TaskStatus.CANCELLED;
+    task.isDeleted = true;
     await this.taskRepository.save(task);
   }
 
@@ -802,7 +804,7 @@ export class TaskService {
     }
 
     const tasks = await this.taskRepository.find({
-      where: { needyId: userMetadata.userId },
+      where: { needyId: userMetadata.userId, isDeleted: false },
       relations: [
         'program',
         'assignedVolunteer',
@@ -846,7 +848,7 @@ export class TaskService {
 
     // 1) Задачи, на которые волонтёр назначен
     const assignedTasks = await this.taskRepository.find({
-      where: { assignedVolunteerId: userId },
+      where: { assignedVolunteerId: userId, isDeleted: false },
       relations: [
         'program',
         'needy',
@@ -891,7 +893,7 @@ export class TaskService {
 
     if (pendingTaskIds.length > 0) {
       const pendingTasks = await this.taskRepository.find({
-        where: { id: In(pendingTaskIds) },
+        where: { id: In(pendingTaskIds), isDeleted: false },
         relations: [
           'program',
           'needy',

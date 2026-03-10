@@ -80,6 +80,13 @@ export class Task {
   status: TaskStatus;
 
   @Column({
+    name: 'is_deleted',
+    type: 'boolean',
+    default: false,
+  })
+  isDeleted: boolean;
+
+  @Column({
     name: 'category_id',
     type: 'uuid',
     nullable: true,
