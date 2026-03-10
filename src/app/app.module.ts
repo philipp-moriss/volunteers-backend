@@ -37,6 +37,9 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ImageModule } from 'src/image/image.module';
 import { NeedyInviteModule } from 'src/needy-invite/needy-invite.module';
 import { NeedyInvitation } from 'src/needy-invite/entities/needy-invitation.entity';
+import { FcmModule } from 'src/fcm/fcm.module';
+import { PushTokenModule } from 'src/push-token/push-token.module';
+import { PushToken } from 'src/push-token/entities/push-token.entity';
 
 @Module({
   imports: [
@@ -88,6 +91,7 @@ import { NeedyInvitation } from 'src/needy-invite/entities/needy-invitation.enti
             VolunteerRating,
             PointsTransaction,
             NeedyInvitation,
+            PushToken,
           ],
         };
       },
@@ -101,6 +105,8 @@ import { NeedyInvitation } from 'src/needy-invite/entities/needy-invitation.enti
     TaskModule,
     VolunteerRatingModule,
     NotificationsModule,
+    FcmModule,
+    PushTokenModule,
     ImageModule,
     CityModule,
     CityGroupModule,

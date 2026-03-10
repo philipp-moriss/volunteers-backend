@@ -44,10 +44,31 @@ export class FcmService {
       return { success: false, error: 'Invalid device token' };
     }
 
+    let parsedPayload: Record<string, unknown> = {};
+    try {
+      parsedPayload = payload ? (JSON.parse(payload) as Record<string, unknown>) : {};
+    } catch {
+      parsedPayload = {};
+    }
+
+    const routeTaskId =
+      typeof parsedPayload.taskId === 'string' ? parsedPayload.taskId : undefined;
+    const routeLink =
+      typeof parsedPayload.link === 'string'
+        ? parsedPayload.link
+        : routeTaskId
+          ? `/tasks/${routeTaskId}`
+          : '/';
+
     const message: Message = {
+      // Важно для iOS: наличие notification/aps.alert обеспечивает видимый push-баннер.
+      notification: {
+        title,
+        body,
+      },
       data: {
-        title: title,
-        body: body,
+        title,
+        body,
         route: payload,
       },
       token: deviceToken.trim(),
@@ -59,17 +80,45 @@ export class FcmService {
       apns: {
         payload: {
           aps: {
+            alert: {
+              title,
+              body,
+            },
             sound: 'default',
             contentAvailable: true,
           },
         },
         headers: {
+          // Для видимого уведомления на iOS (background/terminated)
+          'apns-push-type': 'alert',
           'apns-priority': '10',
           // Для iOS также можно указать expiration через apns-expiration
           // Формат: Unix timestamp в секундах
-          ...(ttl !== undefined && ttl >= 0 ? { 
-            'apns-expiration': String(Math.floor(Date.now() / 1000) + Math.floor(ttl / 1000))
-          } : {}),
+          ...(ttl !== undefined && ttl >= 0
+            ? {
+                'apns-expiration': String(
+                  Math.floor(Date.now() / 1000) + Math.floor(ttl / 1000),
+                ),
+              }
+            : {}),
+        },
+      },
+      // Важно для Web/PWA (Android/Desktop): явный webpush.notification + link
+      webpush: {
+        headers: {
+          Urgency: 'high',
+          ...(ttl !== undefined && ttl >= 0
+            ? { TTL: String(Math.max(0, Math.floor(ttl / 1000))) }
+            : {}),
+        },
+        notification: {
+          title,
+          body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+        },
+        fcmOptions: {
+          link: routeLink,
         },
       },
     };
