@@ -975,12 +975,21 @@ export class TaskService {
     const skillIds = volunteer.skills?.map((skill) => skill.id) ?? [];
     const cityIds = await this.resolveCityIdsForVolunteer(volunteer.cityId ?? undefined);
 
-    const tasks = await this.findAll(undefined, {
+    let tasks = await this.findAll(undefined, {
       status,
       categoryId: undefined,
       skillIds: skillIds.length > 0 ? skillIds : undefined,
       cityIds,
     });
+
+    if (tasks.length === 0 && skillIds.length > 0) {
+      tasks = await this.findAll(undefined, {
+        status,
+        categoryId: undefined,
+        skillIds: undefined,
+        cityIds,
+      });
+    }
 
     if (tasks.length === 0) {
       return [];
