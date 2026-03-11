@@ -30,7 +30,7 @@ export class PointsService {
       const volunteerRepository = manager.getRepository(Volunteer);
       const transactionRepository = manager.getRepository(PointsTransaction);
 
-      // Получаем волонтера с блокировкой для предотвращения race condition
+      // Получаем волонтера по userId с блокировкой для предотвращения race condition
       const volunteer = await volunteerRepository.findOne({
         where: { userId: dto.volunteerId },
         lock: { mode: 'pessimistic_write' },
@@ -52,7 +52,8 @@ export class PointsService {
 
       // Создаем транзакцию
       const transaction = transactionRepository.create({
-        volunteerId: dto.volunteerId,
+        // В points_transactions.volunteer_id хранится ID сущности Volunteer, а не userId
+        volunteerId: volunteer.id,
         taskId: dto.taskId,
         amount: dto.amount,
         type: dto.type,
@@ -83,6 +84,7 @@ export class PointsService {
     limit?: number,
     offset?: number,
   ): Promise<{ transactions: PointsTransaction[]; total: number }> {
+    // На входе ожидаем userId, поэтому сначала находим сущность Volunteer
     const volunteer = await this.volunteerRepository.findOne({
       where: { userId: volunteerId },
     });
@@ -93,7 +95,8 @@ export class PointsService {
 
     const queryBuilder = this.transactionRepository
       .createQueryBuilder('transaction')
-      .where('transaction.volunteerId = :volunteerId', { volunteerId })
+      // В таблице хранится volunteer.id, поэтому фильтруем по нему
+      .where('transaction.volunteerId = :volunteerDbId', { volunteerDbId: volunteer.id })
       .leftJoinAndSelect('transaction.task', 'task')
       .orderBy('transaction.createdAt', 'DESC');
 
