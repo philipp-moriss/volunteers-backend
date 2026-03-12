@@ -339,6 +339,66 @@ export class UserService {
     });
   }
 
+  async findAllPaginated(params: {
+    status?: UserStatus;
+    role?: UserRole;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? params.limit : 20;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id',
+        'user.phone',
+        'user.email',
+        'user.role',
+        'user.status',
+        'user.firstName',
+        'user.lastName',
+        'user.photo',
+        'user.about',
+        'user.createdAt',
+        'user.updatedAt',
+        'user.lastLoginAt',
+        'user.onboardingCompleted',
+        'user.approvedById',
+        'user.approvedAt',
+      ])
+      .orderBy('user.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    if (params.status !== undefined) {
+      queryBuilder.andWhere('user.status = :status', { status: params.status });
+    }
+
+    if (params.role !== undefined) {
+      queryBuilder.andWhere('user.role = :role', { role: params.role });
+    }
+
+    if (params.search && params.search.trim()) {
+      const search = `%${params.search.trim()}%`;
+      queryBuilder.andWhere(
+        '(user.firstName ILIKE :search OR user.lastName ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)',
+        { search },
+      );
+    }
+
+    const [items, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+    };
+  }
+
   async findOne(id: string) {
     const user = await this.userRepository.findOne({
       where: { id },

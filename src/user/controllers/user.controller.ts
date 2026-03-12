@@ -8,6 +8,7 @@ import { UserRole } from 'src/shared/user/type';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { GetUsersQueryDto } from '../dto/get-users-query.dto';
+import { GetUsersAdminQueryDto } from '../dto/get-users-admin-query.dto';
 import { UserService } from '../user.service';
 
 @ApiTags('User')
@@ -27,10 +28,22 @@ export class UserController {
     return this.userService.create(createUserDto, admin.userId);
   }
 
-  @ApiOperation({ summary: 'Get all users' })
+  @ApiOperation({ summary: 'Get all users (for mobile, no pagination)' })
   @Get()
   findAll(@Query() query: GetUsersQueryDto) {
     return this.userService.findAll(query.status);
+  }
+
+  @ApiOperation({ summary: 'Get users with pagination and search (for admin panel)' })
+  @Get('admin')
+  findAllPaginated(@Query() query: GetUsersAdminQueryDto) {
+    return this.userService.findAllPaginated({
+      status: query.status,
+      role: query.role,
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+    });
   }
 
   @ApiOperation({ summary: 'Get a user by id with role data' })
