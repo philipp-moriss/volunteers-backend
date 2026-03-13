@@ -162,6 +162,37 @@ export class Task {
   })
   location?: Point; // PostGIS Point для геолокации
 
+  /** Семья явно поделилась контактом с волонтёром */
+  @Column({
+    name: 'is_needy_contact_shared',
+    type: 'boolean',
+    default: false,
+  })
+  isNeedyContactShared: boolean;
+
+  @Column({
+    name: 'needy_contact_shared_at',
+    type: 'timestamp',
+    nullable: true,
+  })
+  needyContactSharedAt?: Date | null;
+
+  @Column({
+    name: 'needy_shared_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  needySharedName?: string | null;
+
+  @Column({
+    name: 'needy_shared_phone',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  needySharedPhone?: string | null;
+
   @CreateDateColumn({
     name: 'created_at',
   })

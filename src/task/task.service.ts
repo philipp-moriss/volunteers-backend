@@ -12,7 +12,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ApproveTaskDto } from './dto/approve-task.dto';
 import { AssignVolunteerDto } from './dto/assign-volunteer.dto';
-import { TaskStatus, TaskApproveRole, TaskWithMyResponse } from './types';
+import { TaskStatus, TaskApproveRole, TaskWithMyResponse, NeedyContactShared } from './types';
 import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { UserRole } from 'src/shared/user/type';
 import { User } from 'src/user/entities/user.entity';
@@ -46,6 +46,7 @@ import { UUID } from 'crypto';
 
 export type TaskWithVolunteerStatus = Task & {
   hasMyResponse?: boolean;
+  needyContact?: NeedyContactShared | null;
 };
 
 @Injectable()
@@ -654,6 +655,75 @@ export class TaskService {
     return savedTask;
   }
 
+  /**
+   * Семья (needy) явно делится контактом с назначенным волонтёром.
+   * После подтверждения в bottom sheet волонтёр получает имя и телефон.
+   */
+  async shareContact(id: string, userMetadata: UserMetadata): Promise<Task> {
+    if (userMetadata.role !== UserRole.NEEDY) {
+      throw new ForbiddenException('Only needy users can share their contact with volunteers');
+    }
+
+    const task = await this.taskRepository.findOne({
+      where: { id, isDeleted: false },
+      relations: ['needy', 'assignedVolunteer'],
+    });
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    if (task.needyId !== userMetadata.userId) {
+      throw new ForbiddenException('You can only share contact for your own tasks');
+    }
+
+    if (!task.assignedVolunteerId) {
+      throw new BadRequestException('Task has no assigned volunteer');
+    }
+
+    if (task.isNeedyContactShared) {
+      throw new BadRequestException('Contact has already been shared with the volunteer');
+    }
+
+    const needyUser = await this.userRepository.findOne({
+      where: { id: task.needyId },
+      select: ['firstName', 'lastName', 'phone'],
+    });
+
+    if (!needyUser?.phone) {
+      throw new BadRequestException('Phone number is required to share contact');
+    }
+
+    const fullName = [needyUser.firstName, needyUser.lastName].filter(Boolean).join(' ').trim() || '—';
+
+    task.isNeedyContactShared = true;
+    task.needyContactSharedAt = new Date();
+    task.needySharedName = fullName;
+    task.needySharedPhone = needyUser.phone;
+
+    const savedTask = await this.taskRepository.save(task);
+
+    const volunteerUser = await this.userRepository.findOne({
+      where: { id: task.assignedVolunteerId },
+      select: ['language'],
+    });
+    const t = getNotificationTranslations(volunteerUser?.language);
+    this.pushNotificationService
+      .sendToUser(task.assignedVolunteerId, {
+        title: t.needySharedContact.title,
+        body: t.needySharedContact.body(savedTask.title),
+        data: { type: 'needy_shared_contact', taskId: savedTask.id },
+        tag: `task-${savedTask.id}`,
+      })
+      .catch((err) =>
+        this.logger.warn(
+          `Failed to send needy-shared-contact push to ${task.assignedVolunteerId}: ${err?.message}`,
+        ),
+      );
+
+    return savedTask;
+  }
+
   async approveCompletion(
     id: string,
     approveTaskDto: ApproveTaskDto,
@@ -876,10 +946,8 @@ export class TaskService {
 
     const assignedIds = new Set(assignedTasks.map((t) => t.id));
     const result: TaskWithVolunteerStatus[] = assignedTasks.map((task) => {
-      if (task.needy) {
-        (task as Task).needy = sanitizeUser(task.needy) as any;
-      }
-      return task;
+      const t = this.buildTaskForVolunteer(task);
+      return t;
     });
 
     // 2) Задачи, на которые волонтёр откликнулся и ждёт решения (PENDING) — показываем во «Мои задачи» предварительно
@@ -920,10 +988,7 @@ export class TaskService {
       });
 
       for (const task of pendingTasks) {
-        if (task.needy) {
-          (task as Task).needy = sanitizeUser(task.needy) as any;
-        }
-        result.push(task);
+        result.push(this.buildTaskForVolunteer(task));
       }
     }
 
@@ -1014,6 +1079,32 @@ export class TaskService {
   }
 
   /**
+   * Подготавливает задачу для отображения волонтёру:
+   * - Скрывает phone/email needy, если контакт не был явно расшарен
+   * - Добавляет needyContact при isNeedyContactShared
+   */
+  private buildTaskForVolunteer(task: Task): TaskWithVolunteerStatus {
+    const base = { ...task } as TaskWithVolunteerStatus;
+    if (task.needy) {
+      const sanitized = sanitizeUser(task.needy) as any;
+      if (!task.isNeedyContactShared) {
+        delete sanitized.phone;
+        delete sanitized.email;
+      }
+      (base as Task).needy = sanitized;
+    }
+    if (task.isNeedyContactShared && task.needySharedName && task.needySharedPhone) {
+      base.needyContact = {
+        name: task.needySharedName,
+        phone: task.needySharedPhone,
+      };
+    } else {
+      base.needyContact = null;
+    }
+    return base;
+  }
+
+  /**
    * Resolves city IDs for task filter: volunteer with no city => []; with city => [cityId] or group city IDs.
    */
   private async resolveCityIdsForVolunteer(volunteerCityId: string | undefined): Promise<string[]> {
@@ -1032,6 +1123,7 @@ export class TaskService {
     }
 
     const task = await this.findOne(id);
+    const built = this.buildTaskForVolunteer(task);
 
     const myResponse = await this.taskResponseRepository.findOne({
       where: {
@@ -1042,9 +1134,9 @@ export class TaskService {
     });
 
     return {
-      ...task,
+      ...built,
       hasMyResponse: !!myResponse,
-    };
+    } as TaskWithMyResponse;
   }
 
   async createFromAi(

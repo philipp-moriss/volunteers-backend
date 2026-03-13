@@ -197,6 +197,22 @@ export class TaskController {
   }
 
   @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Share contact with assigned volunteer (Needy)',
+    description:
+      'After approving a volunteer, the family can share their name and phone so the volunteer can reach out.',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.NEEDY)
+  @Post(':id/share-contact')
+  shareContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUserMetadata() user: UserMetadata,
+  ) {
+    return this.taskService.shareContact(id, user);
+  }
+
+  @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Cancel assignment of a volunteer (Needy or Volunteer)' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.NEEDY, UserRole.VOLUNTEER)

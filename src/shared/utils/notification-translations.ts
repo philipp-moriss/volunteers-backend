@@ -52,6 +52,11 @@ export const notificationTranslations = {
       title: 'Approved',
       body: 'Your account has been approved by an administrator.',
     },
+    needySharedContact: {
+      title: 'Family Shared Contact',
+      body: (taskTitle: string) =>
+        `The family for task "${taskTitle}" has shared their contact details with you.`,
+    },
   },
   he: {
     newTask: {
@@ -104,6 +109,11 @@ export const notificationTranslations = {
       title: 'אושר',
       body: 'החשבון שלך אושר על ידי המנהל.',
     },
+    needySharedContact: {
+      title: 'המשפחה שיתפה פרטי קשר',
+      body: (taskTitle: string) =>
+        `המשפחה של המשימה "${taskTitle}" שיתפה איתך את פרטי הקשר שלה.`,
+    },
   },
   ru: {
     newTask: {
@@ -155,6 +165,11 @@ export const notificationTranslations = {
     approvedByAdmin: {
       title: 'Одобрено',
       body: 'Ваш аккаунт одобрен администратором.',
+    },
+    needySharedContact: {
+      title: 'Семья поделилась контактом',
+      body: (taskTitle: string) =>
+        `Семья по задаче "${taskTitle}" поделилась с вами своими контактными данными.`,
     },
   },
 };
