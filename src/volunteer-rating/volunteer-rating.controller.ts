@@ -42,7 +42,7 @@ export class VolunteerRatingController {
   @ApiOperation({ summary: 'Get all ratings with volunteer info (for admin panel)' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @Get('admin/ratings')
+  @Get('ratings/admin')
   getRatingsForAdmin(
     @Query() query: GetVolunteerRatingsAdminDto,
   ): Promise<GetVolunteerRatingsAdminResponseDto> {
