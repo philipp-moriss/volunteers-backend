@@ -399,6 +399,51 @@ export class UserService {
     };
   }
 
+  async findForExport(params: {
+    status?: UserStatus;
+    role?: UserRole;
+    search?: string;
+  }) {
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id',
+        'user.phone',
+        'user.email',
+        'user.role',
+        'user.status',
+        'user.firstName',
+        'user.lastName',
+        'user.photo',
+        'user.about',
+        'user.createdAt',
+        'user.updatedAt',
+        'user.lastLoginAt',
+        'user.onboardingCompleted',
+        'user.approvedById',
+        'user.approvedAt',
+      ])
+      .orderBy('user.createdAt', 'DESC');
+
+    if (params.status !== undefined) {
+      queryBuilder.andWhere('user.status = :status', { status: params.status });
+    }
+
+    if (params.role !== undefined) {
+      queryBuilder.andWhere('user.role = :role', { role: params.role });
+    }
+
+    if (params.search && params.search.trim()) {
+      const search = `%${params.search.trim()}%`;
+      queryBuilder.andWhere(
+        '(user.firstName ILIKE :search OR user.lastName ILIKE :search OR user.email ILIKE :search OR user.phone ILIKE :search)',
+        { search },
+      );
+    }
+
+    return queryBuilder.getMany();
+  }
+
   async findOne(id: string) {
     const user = await this.userRepository.findOne({
       where: { id },

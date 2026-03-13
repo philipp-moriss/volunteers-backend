@@ -14,6 +14,11 @@ import { UserMetadata } from 'src/shared/decorators/get-user.decorator';
 import { UserRole } from 'src/shared/user/type';
 import { TaskStatus } from 'src/task/types/task-status.enum';
 import { GetVolunteerRatingDto } from './dto/get-volunteer-rating.dto';
+import { GetVolunteerRatingsAdminDto } from './dto/get-volunteer-ratings-admin.dto';
+import {
+  GetVolunteerRatingsAdminResponseDto,
+  VolunteerRatingAdminItemDto,
+} from './dto/get-volunteer-ratings-admin-response.dto';
 
 @Injectable()
 export class VolunteerRatingService {
@@ -153,6 +158,70 @@ export class VolunteerRatingService {
       comment: rating.comment,
       createdAt: rating.createdAt,
     }));
+  }
+
+  async getRatingsForAdmin(
+    params: GetVolunteerRatingsAdminDto,
+  ): Promise<GetVolunteerRatingsAdminResponseDto> {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? params.limit : 20;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.volunteerRatingRepository
+      .createQueryBuilder('rating')
+      .leftJoin('rating.volunteer', 'volunteer')
+      .leftJoin('volunteer.user', 'user')
+      .leftJoin('rating.task', 'task')
+      .select([
+        'rating.id',
+        'rating.score',
+        'rating.comment',
+        'rating.createdAt',
+        'task.id',
+        'user.id',
+        'user.firstName',
+        'user.lastName',
+        'user.phone',
+        'user.email',
+      ])
+      .orderBy('rating.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    if (params.search && params.search.trim()) {
+      const raw = params.search.trim();
+      const like = `%${raw}%`;
+
+      queryBuilder.andWhere(
+        '(user.firstName ILIKE :like OR user.lastName ILIKE :like OR user.email ILIKE :like OR user.phone ILIKE :like OR user.id::text = :exact)',
+        {
+          like,
+          exact: raw,
+        },
+      );
+    }
+
+    const [rows, total] = await queryBuilder.getManyAndCount();
+
+    const items: VolunteerRatingAdminItemDto[] = rows.map((rating) => ({
+      id: rating.id,
+      score: rating.score,
+      comment: rating.comment,
+      createdAt: rating.createdAt,
+      volunteerUserId: rating.volunteer?.userId ?? rating.volunteer?.user?.id ?? '',
+      volunteerFirstName: rating.volunteer?.user?.firstName,
+      volunteerLastName: rating.volunteer?.user?.lastName,
+      volunteerPhone: rating.volunteer?.user?.phone,
+      volunteerEmail: rating.volunteer?.user?.email,
+      taskId: rating.task?.id ?? rating.taskId,
+    }));
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+    };
   }
 }
 

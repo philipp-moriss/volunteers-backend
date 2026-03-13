@@ -40,6 +40,7 @@ import { NeedyInvitation } from 'src/needy-invite/entities/needy-invitation.enti
 import { FcmModule } from 'src/fcm/fcm.module';
 import { PushTokenModule } from 'src/push-token/push-token.module';
 import { PushToken } from 'src/push-token/entities/push-token.entity';
+import { ExportModule } from 'src/export/export.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { PushToken } from 'src/push-token/entities/push-token.entity';
     CityGroupModule,
     PointsModule,
     NeedyInviteModule,
+    ExportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
