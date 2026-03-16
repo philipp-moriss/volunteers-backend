@@ -202,4 +202,11 @@ export class Task {
     name: 'updated_at',
   })
   updatedAt: Date;
+
+  @Column({
+    name: 'is_created_by_admin',
+    type: 'boolean',
+    default: false,
+  })
+  isCreatedByAdmin: boolean;
 }

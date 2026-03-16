@@ -203,6 +203,7 @@ export class TaskService {
       cityId: taskCityId,
       address: taskAddress,
       location: taskLocation as any, // TypeORM требует any для geometry типа
+      isCreatedByAdmin: userMetadata.role === UserRole.ADMIN,
     });
 
     const savedTask = await this.taskRepository.save(task);
@@ -314,9 +315,26 @@ export class TaskService {
     }
 
     if (filters?.skillIds && filters.skillIds.length > 0) {
-      queryBuilder
-        .innerJoin('task.skills', 'filterSkill')
-        .andWhere('filterSkill.id IN (:...skillIds)', { skillIds: filters.skillIds });
+      // Важно: задачи БЕЗ скиллов (пустой массив skills) должны показываться всем волонтёрам.
+      // Поэтому не фильтруем по JOIN'у, а используем подзапрос:
+      //  - либо у задачи нет записей в task_skills
+      //  - либо есть хотя бы один skill_id из нужного списка
+      queryBuilder.andWhere(
+        `(
+          NOT EXISTS (
+            SELECT 1
+            FROM task_skills ts
+            WHERE ts.task_id = task.id
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM task_skills ts2
+            WHERE ts2.task_id = task.id
+              AND ts2.skill_id IN (:...skillIds)
+          )
+        )`,
+        { skillIds: filters.skillIds },
+      );
     }
 
     if (filters?.cityIds !== undefined) {
@@ -1038,6 +1056,7 @@ export class TaskService {
     }
 
     const skillIds = volunteer.skills?.map((skill) => skill.id) ?? [];
+    const volunteerSkillSet = new Set(skillIds);
     const cityIds = await this.resolveCityIdsForVolunteer(volunteer.cityId ?? undefined);
 
     let tasks = await this.findAll(undefined, {
@@ -1060,7 +1079,19 @@ export class TaskService {
       return [];
     }
 
-    const taskIds = tasks.map((task) => task.id);
+    // Помечаем задачи флагом isMatchSkills (все скиллы задачи покрыты скиллами волонтёра)
+    const tasksWithMatchFlag = tasks.map((task) => {
+      const taskSkillIds = task.skills?.map((s) => s.id) ?? [];
+      const hasTaskSkills = taskSkillIds.length > 0;
+      const isMatchSkills =
+        hasTaskSkills && taskSkillIds.every((id) => volunteerSkillSet.has(id));
+      return {
+        ...task,
+        isMatchSkills,
+      } as TaskWithMyResponse;
+    });
+
+    const taskIds = tasksWithMatchFlag.map((task) => task.id);
 
     const myResponses = await this.taskResponseRepository.find({
       where: {
@@ -1072,10 +1103,35 @@ export class TaskService {
 
     const tasksWithMyResponse = new Set(myResponses.map((response) => response.taskId));
 
-    return tasks.map((task) => ({
+    const enriched = tasksWithMatchFlag.map((task) => ({
       ...task,
       hasMyResponse: tasksWithMyResponse.has(task.id),
     }));
+
+    // Сортировка:
+    // 1) задачи, где есть пересечение по скиллам (task.skills ∩ volunteer.skills != ∅)
+    // 2) задачи, созданные админом (isCreatedByAdmin = true)
+    // 3) остальные задачи
+    // Внутри каждой группы — по дате создания (новые сверху)
+    const score = (task: TaskWithMyResponse) => {
+      const taskSkillIds = task.skills?.map((s) => s.id) ?? [];
+      const hasIntersection =
+        taskSkillIds.length > 0 && taskSkillIds.some((id) => volunteerSkillSet.has(id));
+      if (hasIntersection) return 3;
+      if (task.isCreatedByAdmin) return 2;
+      return 1;
+    };
+
+    enriched.sort((a, b) => {
+      const sa = score(a);
+      const sb = score(b);
+      if (sa !== sb) {
+        return sb - sa; // больше score — выше
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    return enriched;
   }
 
   /**
