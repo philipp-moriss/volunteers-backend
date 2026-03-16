@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { TaskResponse } from './entities/task-response.entity';
 import { Task } from './entities/task.entity';
 import { ApproveVolunteerDto } from './dto/approve-volunteer.dto';
@@ -34,6 +34,7 @@ export class TaskResponseService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async respond(id: string, userMetadata: UserMetadata): Promise<TaskResponse> {
@@ -222,10 +223,6 @@ export class TaskResponseService {
       throw new NotFoundException(`Task with ID ${id} not found`);
     }
 
-    if (task.status === TaskStatus.IN_PROGRESS || task.status === TaskStatus.COMPLETED) {
-      throw new BadRequestException('Cannot cancel response for task in progress or completed');
-    }
-
     const taskResponse = await this.taskResponseRepository.findOne({
       where: {
         taskId: id,
@@ -237,11 +234,38 @@ export class TaskResponseService {
       throw new NotFoundException('Response not found');
     }
 
-    if (taskResponse.status === TaskResponseStatus.APPROVED) {
-      throw new BadRequestException('Cannot cancel approved response');
+    if (task.status === TaskStatus.COMPLETED) {
+      throw new BadRequestException('Cannot cancel response for completed task');
     }
 
-    await this.taskResponseRepository.remove(taskResponse);
+    if (taskResponse.status === TaskResponseStatus.CANCELLED_BY_VOLUNTEER) {
+      return;
+    }
+
+    if (task.status === TaskStatus.ACTIVE && taskResponse.status !== TaskResponseStatus.APPROVED) {
+      await this.taskResponseRepository.remove(taskResponse);
+      return;
+    }
+
+    if (
+      task.status === TaskStatus.IN_PROGRESS &&
+      task.assignedVolunteerId === userMetadata.userId &&
+      (taskResponse.status === TaskResponseStatus.APPROVED ||
+        taskResponse.status === TaskResponseStatus.PENDING)
+    ) {
+      taskResponse.status = TaskResponseStatus.CANCELLED_BY_VOLUNTEER;
+      task.assignedVolunteerId = null;
+      task.assignedVolunteer = null;
+
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(TaskResponse).save(taskResponse);
+        await manager.getRepository(Task).save(task);
+      });
+
+      return;
+    }
+
+    throw new BadRequestException('Cannot cancel response in current state');
   }
 
   async approveVolunteer(
