@@ -256,6 +256,7 @@ export class TaskResponseService {
       taskResponse.status = TaskResponseStatus.CANCELLED_BY_VOLUNTEER;
       task.assignedVolunteerId = null;
       task.assignedVolunteer = null;
+      task.status = TaskStatus.ACTIVE;
 
       await this.dataSource.transaction(async (manager) => {
         await manager.getRepository(TaskResponse).save(taskResponse);
