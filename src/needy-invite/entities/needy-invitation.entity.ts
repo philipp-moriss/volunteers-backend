@@ -23,8 +23,8 @@ export class NeedyInvitation {
   @JoinColumn({ name: 'creator_id' })
   creator: User;
 
-  @Column({ name: 'expires_at', type: 'timestamptz' })
-  expiresAt: Date;
+  @Column({ name: 'expires_at', type: 'timestamptz', nullable: true })
+  expiresAt: Date | null;
 
   @Column({ name: 'used_at', type: 'timestamptz', nullable: true })
   usedAt: Date | null;
