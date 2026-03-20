@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -26,13 +21,11 @@ export class NeedyInviteService {
 
   async createInvite(creatorId: string): Promise<{ url: string }> {
     const token = crypto.randomUUID().replace(/-/g, '');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
 
     const invite = this.inviteRepository.create({
       token,
       creatorId,
-      expiresAt,
+      expiresAt: null,
     });
     await this.inviteRepository.save(invite);
 
@@ -50,11 +43,7 @@ export class NeedyInviteService {
     });
 
     if (!invite) {
-      throw new NotFoundException('Invalid or expired invitation');
-    }
-
-    if (new Date() > invite.expiresAt) {
-      throw new BadRequestException('Invitation has expired');
+      throw new NotFoundException('Invalid invitation');
     }
 
     const formattedPhone = this.formatPhone(dto.phone);
