@@ -301,6 +301,7 @@ export class UserService {
           programs: programsToAssign,
           skills: skillEntities,
           cityId,
+          address,
         });
         return await volunteerRepository.save(volunteer);
 
@@ -692,6 +693,10 @@ export class UserService {
                 volunteer.cityId = cityId;
               }
 
+              if (address !== undefined) {
+                volunteer.address = address;
+              }
+
               await volunteerRepository.save(volunteer);
             }
             break;
@@ -778,6 +783,7 @@ export class UserService {
         'status',
         'firstName',
         'lastName',
+        'documentId',
         'photo',
         'about',
         'createdAt',

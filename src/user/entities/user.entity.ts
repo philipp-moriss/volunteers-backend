@@ -63,6 +63,14 @@ export class User {
   lastName?: string;
 
   @Column({
+    name: 'document_id',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  documentId?: string | null;
+
+  @Column({
     name: 'photo',
     type: 'varchar',
     nullable: true,

@@ -16,6 +16,11 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsString()
   lastName?: string;
 
+  @ApiProperty({ required: false, description: 'Government / national ID (volunteer insurance)' })
+  @IsOptional()
+  @IsString()
+  documentId?: string;
+
   @ApiProperty({ required: false, description: 'User email' })
   @IsOptional()
   @IsEmail()

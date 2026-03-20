@@ -55,6 +55,12 @@ export class Volunteer {
   city?: City;
 
   @Column({
+    type: 'text',
+    nullable: true,
+  })
+  address?: string | null;
+
+  @Column({
     type: 'int',
     default: 0,
   })

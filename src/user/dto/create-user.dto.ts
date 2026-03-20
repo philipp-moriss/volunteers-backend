@@ -23,6 +23,14 @@ export class CreateUserDto {
   lastName?: string;
 
   @ApiProperty({
+    description: 'Government / national ID (optional, e.g. for volunteer insurance)',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  documentId?: string;
+
+  @ApiProperty({
     description: 'The email of the user (for admin)',
     example: 'admin@example.com',
     required: false,
